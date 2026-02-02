@@ -47,21 +47,32 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                 KeyCode::Tab => app.next_panel(),
                 KeyCode::BackTab => app.prev_panel(),
 
-                // Option toggles (when in Options panel or globally)
+                // Sync commands (Ctrl+key)
+                KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    run_rsync(app, false);
+                }
+                KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    run_rsync(app, true);
+                }
+
+                // Text input for source/destination (allow Shift for uppercase)
+                KeyCode::Char(c)
+                    if matches!(app.active_panel, Panel::Source | Panel::Destination)
+                        && !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                {
+                    match app.active_panel {
+                        Panel::Source => app.source.push(c),
+                        Panel::Destination => app.destination.push(c),
+                        _ => {}
+                    }
+                }
+
+                // Option toggles (only when NOT in text input panels)
                 KeyCode::Char(c) if c.is_ascii_digit() => {
                     if let Some(idx) = c.to_digit(10) {
                         if idx >= 1 && idx <= 8 {
                             app.options.toggle((idx - 1) as usize);
                         }
-                    }
-                }
-
-                // Text input for source/destination
-                KeyCode::Char(c) if key.modifiers == KeyModifiers::NONE => {
-                    match app.active_panel {
-                        Panel::Source => app.source.push(c),
-                        Panel::Destination => app.destination.push(c),
-                        _ => {}
                     }
                 }
 
@@ -71,14 +82,6 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                         Panel::Destination => { app.destination.pop(); }
                         _ => {}
                     }
-                }
-
-                // Sync commands
-                KeyCode::Char('s') if key.modifiers == KeyModifiers::CONTROL => {
-                    run_rsync(app, false);
-                }
-                KeyCode::Char('n') if key.modifiers == KeyModifiers::CONTROL => {
-                    run_rsync(app, true);
                 }
 
                 _ => {}
