@@ -123,6 +123,14 @@ fn handle_insert_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
         // Exit insert mode
         KeyCode::Esc => app.mode = Mode::Normal,
 
+        // Enter - move to next panel, stay in Insert if possible
+        KeyCode::Enter => {
+            app.next_panel();
+            if !matches!(app.active_panel, Panel::Source | Panel::Destination) {
+                app.mode = Mode::Normal;
+            }
+        }
+
         // Tab - path autocomplete
         KeyCode::Tab => {
             let current_path = match app.active_panel {
