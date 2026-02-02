@@ -83,6 +83,10 @@ fn handle_normal_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
         KeyCode::Char('3') => app.active_panel = Panel::Options,
         KeyCode::Char('4') => app.active_panel = Panel::Logs,
 
+        // Vim-style navigation (j/k)
+        KeyCode::Char('j') => app.next_panel(), // Move down
+        KeyCode::Char('k') => app.prev_panel(), // Move up
+
         // Enter insert mode (only in Source/Destination panels)
         KeyCode::Char('i')
             if matches!(app.active_panel, Panel::Source | Panel::Destination) =>

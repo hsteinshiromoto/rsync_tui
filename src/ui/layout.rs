@@ -145,7 +145,7 @@ fn render_logs(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     let help_text = match app.mode {
-        Mode::Normal => "[1-4] Panels  [i] Insert  [a/v/z/n/p/d/h/e] Options  [Ctrl+s] Sync  [q] Quit",
+        Mode::Normal => "[1-4/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e] Options  [Ctrl+s] Sync  [q] Quit",
         Mode::Insert => "[Esc] Normal mode  [Ctrl+s] Sync  [Ctrl+n] Dry-run  Type to enter text",
     };
     let help = Paragraph::new(help_text)
