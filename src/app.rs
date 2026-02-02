@@ -16,6 +16,7 @@ pub struct App {
     pub options: RsyncOptions,
     pub logs: Vec<String>,
     pub active_panel: Panel,
+    #[allow(dead_code)] // Reserved for future async progress tracking
     pub running: bool,
     pub should_quit: bool,
 }
@@ -56,5 +57,66 @@ impl App {
     /// Add a log message
     pub fn log(&mut self, message: String) {
         self.logs.push(message);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_new_defaults() {
+        let app = App::new();
+
+        assert!(app.source.is_empty());
+        assert!(app.destination.is_empty());
+        assert!(app.logs.is_empty());
+        assert_eq!(app.active_panel, Panel::Source);
+        assert!(!app.running);
+        assert!(!app.should_quit);
+    }
+
+    #[test]
+    fn test_next_panel_cycles_forward() {
+        let mut app = App::new();
+
+        assert_eq!(app.active_panel, Panel::Source);
+        app.next_panel();
+        assert_eq!(app.active_panel, Panel::Destination);
+        app.next_panel();
+        assert_eq!(app.active_panel, Panel::Options);
+        app.next_panel();
+        assert_eq!(app.active_panel, Panel::Logs);
+        app.next_panel();
+        assert_eq!(app.active_panel, Panel::Source); // Wraps around
+    }
+
+    #[test]
+    fn test_prev_panel_cycles_backward() {
+        let mut app = App::new();
+
+        assert_eq!(app.active_panel, Panel::Source);
+        app.prev_panel();
+        assert_eq!(app.active_panel, Panel::Logs); // Wraps around
+        app.prev_panel();
+        assert_eq!(app.active_panel, Panel::Options);
+        app.prev_panel();
+        assert_eq!(app.active_panel, Panel::Destination);
+        app.prev_panel();
+        assert_eq!(app.active_panel, Panel::Source);
+    }
+
+    #[test]
+    fn test_log_adds_message() {
+        let mut app = App::new();
+
+        assert!(app.logs.is_empty());
+        app.log("First message".to_string());
+        assert_eq!(app.logs.len(), 1);
+        assert_eq!(app.logs[0], "First message");
+
+        app.log("Second message".to_string());
+        assert_eq!(app.logs.len(), 2);
+        assert_eq!(app.logs[1], "Second message");
     }
 }
