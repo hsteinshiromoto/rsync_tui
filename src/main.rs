@@ -99,6 +99,11 @@ fn handle_normal_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
             app.mode = Mode::Insert;
         }
 
+        // Execute rsync when Enter is pressed in Logs panel
+        KeyCode::Enter if app.active_panel == Panel::Logs => {
+            run_rsync(app, false);
+        }
+
         // Option toggles with letter keys
         KeyCode::Char('a') => app.options.toggle(0), // Archive
         KeyCode::Char('v') => app.options.toggle(1), // Verbose

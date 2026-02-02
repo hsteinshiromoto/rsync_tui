@@ -194,9 +194,10 @@ fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_help(frame: &mut Frame, area: Rect, app: &App) {
-    let help_text = match app.mode {
-        Mode::Normal => "[1-5/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e] Options  [Ctrl+s] Sync  [q] Quit",
-        Mode::Insert => "[Esc] Normal  [Tab] Autocomplete  [Ctrl+s] Sync  [Ctrl+n] Dry-run",
+    let help_text = match (&app.mode, &app.active_panel) {
+        (Mode::Normal, Panel::Logs) => "[1-5/j/k] Panels  [Enter] Run  [i] Insert  [a/v/z/n/p/d/h/e] Options  [q] Quit",
+        (Mode::Normal, _) => "[1-5/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e] Options  [Ctrl+s] Sync  [q] Quit",
+        (Mode::Insert, _) => "[Esc] Normal  [Tab] Autocomplete  [Ctrl+s] Sync  [Ctrl+n] Dry-run",
     };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
