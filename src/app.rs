@@ -7,6 +7,7 @@ pub enum Panel {
     Destination,
     Options,
     Logs,
+    Progress,
 }
 
 /// Vim-like editing mode
@@ -24,9 +25,12 @@ pub struct App {
     pub logs: Vec<String>,
     pub active_panel: Panel,
     pub mode: Mode,
-    #[allow(dead_code)] // Reserved for future async progress tracking
     pub running: bool,
     pub should_quit: bool,
+    // Progress tracking
+    pub progress_output: Vec<String>,
+    pub progress_percentage: f64,
+    pub transfer_info: String,
 }
 
 impl App {
@@ -40,6 +44,9 @@ impl App {
             mode: Mode::Normal,
             running: false,
             should_quit: false,
+            progress_output: Vec::new(),
+            progress_percentage: 0.0,
+            transfer_info: String::new(),
         }
     }
 
@@ -49,18 +56,27 @@ impl App {
             Panel::Source => Panel::Destination,
             Panel::Destination => Panel::Options,
             Panel::Options => Panel::Logs,
-            Panel::Logs => Panel::Source,
+            Panel::Logs => Panel::Progress,
+            Panel::Progress => Panel::Source,
         };
     }
 
     /// Move focus to previous panel
     pub fn prev_panel(&mut self) {
         self.active_panel = match self.active_panel {
-            Panel::Source => Panel::Logs,
+            Panel::Source => Panel::Progress,
             Panel::Destination => Panel::Source,
             Panel::Options => Panel::Destination,
             Panel::Logs => Panel::Options,
+            Panel::Progress => Panel::Logs,
         };
+    }
+
+    /// Clear progress state for new transfer
+    pub fn clear_progress(&mut self) {
+        self.progress_output.clear();
+        self.progress_percentage = 0.0;
+        self.transfer_info.clear();
     }
 
     /// Add a log message
@@ -84,6 +100,9 @@ mod tests {
         assert_eq!(app.mode, Mode::Normal);
         assert!(!app.running);
         assert!(!app.should_quit);
+        assert!(app.progress_output.is_empty());
+        assert_eq!(app.progress_percentage, 0.0);
+        assert!(app.transfer_info.is_empty());
     }
 
     #[test]
@@ -98,6 +117,8 @@ mod tests {
         app.next_panel();
         assert_eq!(app.active_panel, Panel::Logs);
         app.next_panel();
+        assert_eq!(app.active_panel, Panel::Progress);
+        app.next_panel();
         assert_eq!(app.active_panel, Panel::Source); // Wraps around
     }
 
@@ -107,7 +128,9 @@ mod tests {
 
         assert_eq!(app.active_panel, Panel::Source);
         app.prev_panel();
-        assert_eq!(app.active_panel, Panel::Logs); // Wraps around
+        assert_eq!(app.active_panel, Panel::Progress); // Wraps around
+        app.prev_panel();
+        assert_eq!(app.active_panel, Panel::Logs);
         app.prev_panel();
         assert_eq!(app.active_panel, Panel::Options);
         app.prev_panel();
