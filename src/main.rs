@@ -1,5 +1,6 @@
 mod app;
 mod event;
+mod path;
 mod rsync;
 mod ui;
 
@@ -37,29 +38,28 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
         terminal.draw(|frame| ui::layout::render(frame, app))?;
 
         if let Some(key) = event::poll_event(100)? {
-            // Global commands (work in both modes)
-            match key.code {
-                // Ctrl+C quit
+            // Global commands (Ctrl+key, work in both modes)
+            let handled = match key.code {
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     app.should_quit = true;
+                    true
                 }
-                // Sync commands (Ctrl+key)
                 KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     run_rsync(app, false);
+                    true
                 }
                 KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     run_rsync(app, true);
+                    true
                 }
-                // Panel navigation with Tab
-                KeyCode::Tab => app.next_panel(),
-                KeyCode::BackTab => app.prev_panel(),
+                _ => false,
+            };
 
-                _ => {
-                    // Mode-specific handling
-                    match app.mode {
-                        Mode::Normal => handle_normal_mode(app, &key),
-                        Mode::Insert => handle_insert_mode(app, &key),
-                    }
+            // Mode-specific handling (if not handled globally)
+            if !handled {
+                match app.mode {
+                    Mode::Normal => handle_normal_mode(app, &key),
+                    Mode::Insert => handle_insert_mode(app, &key),
                 }
             }
         }
@@ -76,6 +76,10 @@ fn handle_normal_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
     match key.code {
         // Quit
         KeyCode::Char('q') => app.should_quit = true,
+
+        // Panel navigation with Tab/Shift+Tab
+        KeyCode::Tab => app.next_panel(),
+        KeyCode::BackTab => app.prev_panel(),
 
         // Panel navigation shortcuts (1-4)
         KeyCode::Char('1') => app.active_panel = Panel::Source,
@@ -112,6 +116,23 @@ fn handle_insert_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
     match key.code {
         // Exit insert mode
         KeyCode::Esc => app.mode = Mode::Normal,
+
+        // Tab - path autocomplete
+        KeyCode::Tab => {
+            let current_path = match app.active_panel {
+                Panel::Source => app.source.clone(),
+                Panel::Destination => app.destination.clone(),
+                _ => return,
+            };
+
+            if let Some(completed) = path::complete_path(&current_path) {
+                match app.active_panel {
+                    Panel::Source => app.source = completed,
+                    Panel::Destination => app.destination = completed,
+                    _ => {}
+                }
+            }
+        }
 
         // Text input (allow Shift for uppercase)
         KeyCode::Char(c)
