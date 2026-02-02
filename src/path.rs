@@ -1,6 +1,16 @@
 use std::fs;
 use std::path::Path;
 
+/// Expand tilde (~) to home directory path
+fn expand_tilde(path: &str) -> String {
+    if path.starts_with('~') {
+        if let Ok(home) = std::env::var("HOME") {
+            return path.replacen('~', &home, 1);
+        }
+    }
+    path.to_string()
+}
+
 /// Complete a partial path using the filesystem.
 /// Returns the completed path if matches found, None otherwise.
 pub fn complete_path(partial: &str) -> Option<String> {
@@ -8,7 +18,8 @@ pub fn complete_path(partial: &str) -> Option<String> {
         return None;
     }
 
-    let path = Path::new(partial);
+    let expanded = expand_tilde(partial);
+    let path = Path::new(&expanded);
 
     // If the path exists and is a directory, list its contents
     if path.is_dir() && partial.ends_with('/') {
@@ -158,5 +169,26 @@ mod tests {
         // Should either complete to something or return None (depending on cwd)
         // Just verify it doesn't panic
         let _ = result;
+    }
+
+    #[test]
+    fn test_expand_tilde_alone() {
+        let home = env::var("HOME").unwrap_or_default();
+        if !home.is_empty() {
+            assert_eq!(expand_tilde("~"), home);
+        }
+    }
+
+    #[test]
+    fn test_expand_tilde_with_path() {
+        let home = env::var("HOME").unwrap_or_default();
+        if !home.is_empty() {
+            assert_eq!(expand_tilde("~/Downloads"), format!("{}/Downloads", home));
+        }
+    }
+
+    #[test]
+    fn test_expand_no_tilde() {
+        assert_eq!(expand_tilde("/usr/local"), "/usr/local");
     }
 }
