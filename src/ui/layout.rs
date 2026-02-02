@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph},
     Frame,
 };
 
@@ -18,7 +18,8 @@ pub fn render(frame: &mut Frame, app: &App) {
             Constraint::Length(3),  // Source (100% width)
             Constraint::Length(3),  // Destination (100% width)
             Constraint::Length(5),  // Options
-            Constraint::Min(5),     // Logs
+            Constraint::Length(6),  // Logs
+            Constraint::Min(6),     // Progress
             Constraint::Length(3),  // Help bar
         ])
         .split(frame.size());
@@ -28,7 +29,8 @@ pub fn render(frame: &mut Frame, app: &App) {
     render_destination(frame, chunks[2], app);
     render_options(frame, chunks[3], app);
     render_logs(frame, chunks[4], app);
-    render_help(frame, chunks[5], app);
+    render_progress(frame, chunks[5], app);
+    render_help(frame, chunks[6], app);
 }
 
 fn render_title(frame: &mut Frame, area: Rect, app: &App) {
@@ -143,9 +145,57 @@ fn render_logs(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(logs, area);
 }
 
+fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
+    let style = panel_style(app.active_panel == Panel::Progress);
+
+    // Split area: top for gauge, bottom for output
+    let inner_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3), // Progress bar
+            Constraint::Min(1),    // Output lines
+        ])
+        .split(area);
+
+    // Progress bar with percentage
+    let label = if app.transfer_info.is_empty() {
+        format!("{:.0}%", app.progress_percentage)
+    } else {
+        format!("{:.0}% - {}", app.progress_percentage, app.transfer_info)
+    };
+
+    let gauge = Gauge::default()
+        .block(
+            Block::default()
+                .title("[5] Progress")
+                .borders(Borders::ALL)
+                .border_style(style),
+        )
+        .gauge_style(Style::default().fg(Color::Cyan).bg(Color::DarkGray))
+        .percent(app.progress_percentage as u16)
+        .label(label);
+    frame.render_widget(gauge, inner_chunks[0]);
+
+    // Rsync output lines
+    let output_lines: Vec<ListItem> = app
+        .progress_output
+        .iter()
+        .rev()
+        .take(10)
+        .map(|line| ListItem::new(line.as_str()))
+        .collect();
+
+    let output = List::new(output_lines).block(
+        Block::default()
+            .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
+            .border_style(style),
+    );
+    frame.render_widget(output, inner_chunks[1]);
+}
+
 fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     let help_text = match app.mode {
-        Mode::Normal => "[1-4/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e] Options  [Ctrl+s] Sync  [q] Quit",
+        Mode::Normal => "[1-5/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e] Options  [Ctrl+s] Sync  [q] Quit",
         Mode::Insert => "[Esc] Normal  [Tab] Autocomplete  [Ctrl+s] Sync  [Ctrl+n] Dry-run",
     };
     let help = Paragraph::new(help_text)
