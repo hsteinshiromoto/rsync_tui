@@ -9,6 +9,13 @@ pub enum Panel {
     Logs,
 }
 
+/// Vim-like editing mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    Normal,
+    Insert,
+}
+
 /// Application state
 pub struct App {
     pub source: String,
@@ -16,6 +23,7 @@ pub struct App {
     pub options: RsyncOptions,
     pub logs: Vec<String>,
     pub active_panel: Panel,
+    pub mode: Mode,
     #[allow(dead_code)] // Reserved for future async progress tracking
     pub running: bool,
     pub should_quit: bool,
@@ -29,6 +37,7 @@ impl App {
             options: RsyncOptions::default(),
             logs: Vec::new(),
             active_panel: Panel::Source,
+            mode: Mode::Normal,
             running: false,
             should_quit: false,
         }
@@ -72,6 +81,7 @@ mod tests {
         assert!(app.destination.is_empty());
         assert!(app.logs.is_empty());
         assert_eq!(app.active_panel, Panel::Source);
+        assert_eq!(app.mode, Mode::Normal);
         assert!(!app.running);
         assert!(!app.should_quit);
     }

@@ -12,6 +12,7 @@ pub fn poll_event(timeout_ms: u64) -> anyhow::Result<Option<KeyEvent>> {
 }
 
 /// Check if key is quit command (q or Ctrl+C)
+#[allow(dead_code)] // Reserved for future use
 pub fn is_quit(key: &KeyEvent) -> bool {
     matches!(
         key,

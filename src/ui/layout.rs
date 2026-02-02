@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{App, Panel};
+use crate::app::{App, Mode, Panel};
 use crate::rsync::command::format_command;
 
 /// Render the entire UI
@@ -23,18 +23,29 @@ pub fn render(frame: &mut Frame, app: &App) {
         ])
         .split(frame.size());
 
-    render_title(frame, chunks[0]);
+    render_title(frame, chunks[0], app);
     render_source(frame, chunks[1], app);
     render_destination(frame, chunks[2], app);
     render_options(frame, chunks[3], app);
     render_logs(frame, chunks[4], app);
-    render_help(frame, chunks[5]);
+    render_help(frame, chunks[5], app);
 }
 
-fn render_title(frame: &mut Frame, area: Rect) {
-    let title = Paragraph::new("rsync TUI")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-        .block(Block::default().borders(Borders::ALL));
+fn render_title(frame: &mut Frame, area: Rect, app: &App) {
+    let mode_str = match app.mode {
+        Mode::Normal => "[NORMAL]",
+        Mode::Insert => "[INSERT]",
+    };
+    let mode_color = match app.mode {
+        Mode::Normal => Color::Green,
+        Mode::Insert => Color::Yellow,
+    };
+
+    let title = Paragraph::new(Line::from(vec![
+        Span::styled("rsync TUI ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled(mode_str, Style::default().fg(mode_color).add_modifier(Modifier::BOLD)),
+    ]))
+    .block(Block::default().borders(Borders::ALL));
     frame.render_widget(title, area);
 }
 
@@ -52,7 +63,7 @@ fn render_source(frame: &mut Frame, area: Rect, app: &App) {
     })
     .block(
         Block::default()
-            .title("Source")
+            .title("[1] Source")
             .borders(Borders::ALL)
             .border_style(style),
     );
@@ -73,7 +84,7 @@ fn render_destination(frame: &mut Frame, area: Rect, app: &App) {
     })
     .block(
         Block::default()
-            .title("Destination")
+            .title("[2] Destination")
             .borders(Borders::ALL)
             .border_style(style),
     );
@@ -83,14 +94,14 @@ fn render_destination(frame: &mut Frame, area: Rect, app: &App) {
 fn render_options(frame: &mut Frame, area: Rect, app: &App) {
     let opts = &app.options;
     let items = vec![
-        format_option("1", "Archive", opts.archive),
-        format_option("2", "Verbose", opts.verbose),
-        format_option("3", "Compress", opts.compress),
-        format_option("4", "Dry-run", opts.dry_run),
-        format_option("5", "Progress", opts.progress),
-        format_option("6", "Delete", opts.delete),
-        format_option("7", "Human", opts.human_readable),
-        format_option("8", "SSH", opts.use_ssh),
+        format_option("a", "Archive", opts.archive),
+        format_option("v", "Verbose", opts.verbose),
+        format_option("z", "Compress", opts.compress),
+        format_option("n", "Dry-run", opts.dry_run),
+        format_option("p", "Progress", opts.progress),
+        format_option("d", "Delete", opts.delete),
+        format_option("h", "Human", opts.human_readable),
+        format_option("e", "SSH", opts.use_ssh),
     ];
 
     let options_text = items.join("  ");
@@ -98,7 +109,7 @@ fn render_options(frame: &mut Frame, area: Rect, app: &App) {
 
     let options = Paragraph::new(options_text).block(
         Block::default()
-            .title("Options (press number to toggle)")
+            .title("[3] Options")
             .borders(Borders::ALL)
             .border_style(style),
     );
@@ -125,15 +136,18 @@ fn render_logs(frame: &mut Frame, area: Rect, app: &App) {
 
     let logs = List::new(lines).block(
         Block::default()
-            .title("Preview / Logs")
+            .title("[4] Preview / Logs")
             .borders(Borders::ALL)
             .border_style(style),
     );
     frame.render_widget(logs, area);
 }
 
-fn render_help(frame: &mut Frame, area: Rect) {
-    let help_text = "[Tab] Switch panel  [Ctrl+s] Sync  [Ctrl+n] Dry-run  [1-8] Toggle options  [q] Quit";
+fn render_help(frame: &mut Frame, area: Rect, app: &App) {
+    let help_text = match app.mode {
+        Mode::Normal => "[1-4] Panels  [i] Insert  [a/v/z/n/p/d/h/e] Options  [Ctrl+s] Sync  [q] Quit",
+        Mode::Insert => "[Esc] Normal mode  [Ctrl+s] Sync  [Ctrl+n] Dry-run  Type to enter text",
+    };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
         .block(Block::default().borders(Borders::ALL));

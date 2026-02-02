@@ -4,7 +4,7 @@ mod rsync;
 mod ui;
 
 use std::io;
-use app::{App, Panel};
+use app::{App, Mode, Panel};
 use crossterm::{
     event::{KeyCode, KeyModifiers},
     execute,
@@ -37,16 +37,12 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
         terminal.draw(|frame| ui::layout::render(frame, app))?;
 
         if let Some(key) = event::poll_event(100)? {
-            // Global quit
-            if event::is_quit(&key) {
-                app.should_quit = true;
-            }
-
+            // Global commands (work in both modes)
             match key.code {
-                // Panel navigation
-                KeyCode::Tab => app.next_panel(),
-                KeyCode::BackTab => app.prev_panel(),
-
+                // Ctrl+C quit
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    app.should_quit = true;
+                }
                 // Sync commands (Ctrl+key)
                 KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     run_rsync(app, false);
@@ -54,37 +50,17 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
                 KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     run_rsync(app, true);
                 }
+                // Panel navigation with Tab
+                KeyCode::Tab => app.next_panel(),
+                KeyCode::BackTab => app.prev_panel(),
 
-                // Text input for source/destination (allow Shift for uppercase)
-                KeyCode::Char(c)
-                    if matches!(app.active_panel, Panel::Source | Panel::Destination)
-                        && !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-                {
-                    match app.active_panel {
-                        Panel::Source => app.source.push(c),
-                        Panel::Destination => app.destination.push(c),
-                        _ => {}
+                _ => {
+                    // Mode-specific handling
+                    match app.mode {
+                        Mode::Normal => handle_normal_mode(app, &key),
+                        Mode::Insert => handle_insert_mode(app, &key),
                     }
                 }
-
-                // Option toggles (only when NOT in text input panels)
-                KeyCode::Char(c) if c.is_ascii_digit() => {
-                    if let Some(idx) = c.to_digit(10) {
-                        if idx >= 1 && idx <= 8 {
-                            app.options.toggle((idx - 1) as usize);
-                        }
-                    }
-                }
-
-                KeyCode::Backspace => {
-                    match app.active_panel {
-                        Panel::Source => { app.source.pop(); }
-                        Panel::Destination => { app.destination.pop(); }
-                        _ => {}
-                    }
-                }
-
-                _ => {}
             }
         }
 
@@ -94,6 +70,67 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
     }
 
     Ok(())
+}
+
+fn handle_normal_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
+    match key.code {
+        // Quit
+        KeyCode::Char('q') => app.should_quit = true,
+
+        // Panel navigation shortcuts (1-4)
+        KeyCode::Char('1') => app.active_panel = Panel::Source,
+        KeyCode::Char('2') => app.active_panel = Panel::Destination,
+        KeyCode::Char('3') => app.active_panel = Panel::Options,
+        KeyCode::Char('4') => app.active_panel = Panel::Logs,
+
+        // Enter insert mode (only in Source/Destination panels)
+        KeyCode::Char('i')
+            if matches!(app.active_panel, Panel::Source | Panel::Destination) =>
+        {
+            app.mode = Mode::Insert;
+        }
+
+        // Option toggles with letter keys
+        KeyCode::Char('a') => app.options.toggle(0), // Archive
+        KeyCode::Char('v') => app.options.toggle(1), // Verbose
+        KeyCode::Char('z') => app.options.toggle(2), // Compress
+        KeyCode::Char('n') => app.options.toggle(3), // Dry-run
+        KeyCode::Char('p') => app.options.toggle(4), // Progress
+        KeyCode::Char('d') => app.options.toggle(5), // Delete
+        KeyCode::Char('h') => app.options.toggle(6), // Human-readable
+        KeyCode::Char('e') => app.options.toggle(7), // SSH
+
+        _ => {}
+    }
+}
+
+fn handle_insert_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
+    match key.code {
+        // Exit insert mode
+        KeyCode::Esc => app.mode = Mode::Normal,
+
+        // Text input (allow Shift for uppercase)
+        KeyCode::Char(c)
+            if !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+        {
+            match app.active_panel {
+                Panel::Source => app.source.push(c),
+                Panel::Destination => app.destination.push(c),
+                _ => {}
+            }
+        }
+
+        // Backspace
+        KeyCode::Backspace => {
+            match app.active_panel {
+                Panel::Source => { app.source.pop(); }
+                Panel::Destination => { app.destination.pop(); }
+                _ => {}
+            }
+        }
+
+        _ => {}
+    }
 }
 
 fn run_rsync(app: &mut App, dry_run: bool) {
