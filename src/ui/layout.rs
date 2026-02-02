@@ -15,7 +15,8 @@ pub fn render(frame: &mut Frame, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),  // Title
-            Constraint::Length(5),  // Source + Destination
+            Constraint::Length(3),  // Source (100% width)
+            Constraint::Length(3),  // Destination (100% width)
             Constraint::Length(5),  // Options
             Constraint::Min(5),     // Logs
             Constraint::Length(3),  // Help bar
@@ -23,10 +24,11 @@ pub fn render(frame: &mut Frame, app: &App) {
         .split(frame.size());
 
     render_title(frame, chunks[0]);
-    render_paths(frame, chunks[1], app);
-    render_options(frame, chunks[2], app);
-    render_logs(frame, chunks[3], app);
-    render_help(frame, chunks[4]);
+    render_source(frame, chunks[1], app);
+    render_destination(frame, chunks[2], app);
+    render_options(frame, chunks[3], app);
+    render_logs(frame, chunks[4], app);
+    render_help(frame, chunks[5]);
 }
 
 fn render_title(frame: &mut Frame, area: Rect) {
@@ -36,14 +38,8 @@ fn render_title(frame: &mut Frame, area: Rect) {
     frame.render_widget(title, area);
 }
 
-fn render_paths(frame: &mut Frame, area: Rect, app: &App) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(area);
-
-    // Source panel
-    let source_style = panel_style(app.active_panel == Panel::Source);
+fn render_source(frame: &mut Frame, area: Rect, app: &App) {
+    let style = panel_style(app.active_panel == Panel::Source);
     let source = Paragraph::new(if app.source.is_empty() {
         "<enter source path>".to_string()
     } else {
@@ -58,12 +54,13 @@ fn render_paths(frame: &mut Frame, area: Rect, app: &App) {
         Block::default()
             .title("Source")
             .borders(Borders::ALL)
-            .border_style(source_style),
+            .border_style(style),
     );
-    frame.render_widget(source, chunks[0]);
+    frame.render_widget(source, area);
+}
 
-    // Destination panel
-    let dest_style = panel_style(app.active_panel == Panel::Destination);
+fn render_destination(frame: &mut Frame, area: Rect, app: &App) {
+    let style = panel_style(app.active_panel == Panel::Destination);
     let dest = Paragraph::new(if app.destination.is_empty() {
         "<enter destination path>".to_string()
     } else {
@@ -78,9 +75,9 @@ fn render_paths(frame: &mut Frame, area: Rect, app: &App) {
         Block::default()
             .title("Destination")
             .borders(Borders::ALL)
-            .border_style(dest_style),
+            .border_style(style),
     );
-    frame.render_widget(dest, chunks[1]);
+    frame.render_widget(dest, area);
 }
 
 fn render_options(frame: &mut Frame, area: Rect, app: &App) {
