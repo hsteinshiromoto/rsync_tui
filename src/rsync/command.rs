@@ -32,9 +32,6 @@ pub fn build_command(source: &str, destination: &str, options: &RsyncOptions) ->
     if options.delete_source {
         args.push("--remove-source-files".to_string());
     }
-    if options.delete_excluded {
-        args.push("--delete-excluded".to_string());
-    }
     if options.progress_per_file {
         args.push("--info=progress2".to_string());
     }
@@ -142,7 +139,6 @@ mod tests {
             human_readable: false,
             use_ssh: false,
             delete_source: false,
-            delete_excluded: false,
             progress_per_file: false,
             exclude: vec![],
         };
@@ -158,15 +154,6 @@ mod tests {
         let cmd = build_command("/src", "/dest", &opts);
 
         assert!(cmd.contains(&"--remove-source-files".to_string()));
-    }
-
-    #[test]
-    fn test_delete_excluded_flag() {
-        let mut opts = RsyncOptions::default();
-        opts.delete_excluded = true;
-        let cmd = build_command("/src", "/dest", &opts);
-
-        assert!(cmd.contains(&"--delete-excluded".to_string()));
     }
 
     #[test]

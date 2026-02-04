@@ -109,7 +109,6 @@ fn render_options(frame: &mut Frame, area: Rect, app: &App) {
         format_option("h", "Human", opts.human_readable),
         format_option("e", "SSH", opts.use_ssh),
         format_option("r", "DelSrc", opts.delete_source),
-        format_option("x", "DelExcl", opts.delete_excluded),
         format_option("f", "GlobalProgress", opts.progress_per_file),
     ];
 
@@ -268,8 +267,8 @@ fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     let help_text = match (&app.mode, &app.active_panel) {
-        (Mode::Normal, Panel::Logs) => "[1-5/j/k] Panels  [Enter] Run  [i] Insert  [a/v/z/n/p/d/h/e/r/x/f] Options  [q] Quit",
-        (Mode::Normal, _) => "[1-5/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e/r/x/f] Options  [Ctrl+s] Sync  [q] Quit",
+        (Mode::Normal, Panel::Logs) => "[1-5/j/k] Panels  [Enter] Run  [i] Insert  [a/v/z/n/p/d/h/e/r/f] Options  [q] Quit",
+        (Mode::Normal, _) => "[1-5/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e/r/f] Options  [Ctrl+s] Sync  [q] Quit",
         (Mode::Insert, _) => "[Esc] Normal  [Enter] Next  [Tab] Autocomplete  [Ctrl+s] Sync  [Ctrl+n] Dry-run",
     };
     let help = Paragraph::new(help_text)

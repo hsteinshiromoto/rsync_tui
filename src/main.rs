@@ -105,17 +105,16 @@ fn handle_normal_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
         }
 
         // Option toggles with letter keys
-        KeyCode::Char('a') => app.options.toggle(0),  // Archive
-        KeyCode::Char('v') => app.options.toggle(1),  // Verbose
-        KeyCode::Char('z') => app.options.toggle(2),  // Compress
-        KeyCode::Char('n') => app.options.toggle(3),  // Dry-run
-        KeyCode::Char('p') => app.options.toggle(4),  // Progress
-        KeyCode::Char('d') => app.options.toggle(5),  // Delete
-        KeyCode::Char('h') => app.options.toggle(6),  // Human-readable
-        KeyCode::Char('e') => app.options.toggle(7),  // SSH
-        KeyCode::Char('r') => app.options.toggle(8),  // Delete source
-        KeyCode::Char('x') => app.options.toggle(9),  // Delete excluded
-        KeyCode::Char('f') => app.options.toggle(10), // Progress per file
+        KeyCode::Char('a') => app.options.toggle(0), // Archive
+        KeyCode::Char('v') => app.options.toggle(1), // Verbose
+        KeyCode::Char('z') => app.options.toggle(2), // Compress
+        KeyCode::Char('n') => app.options.toggle(3), // Dry-run
+        KeyCode::Char('p') => app.options.toggle(4), // Progress
+        KeyCode::Char('d') => app.options.toggle(5), // Delete
+        KeyCode::Char('h') => app.options.toggle(6), // Human-readable
+        KeyCode::Char('e') => app.options.toggle(7), // SSH
+        KeyCode::Char('r') => app.options.toggle(8), // Delete source
+        KeyCode::Char('f') => app.options.toggle(9), // Global progress
 
         _ => {}
     }
