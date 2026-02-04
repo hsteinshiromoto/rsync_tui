@@ -17,7 +17,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             Constraint::Length(3),  // Title
             Constraint::Length(3),  // Source (100% width)
             Constraint::Length(3),  // Destination (100% width)
-            Constraint::Length(5),  // Options
+            Constraint::Length(6),  // Options (2 rows)
             Constraint::Length(6),  // Logs
             Constraint::Min(6),     // Progress
             Constraint::Length(3),  // Help bar
@@ -95,18 +95,23 @@ fn render_destination(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_options(frame: &mut Frame, area: Rect, app: &App) {
     let opts = &app.options;
-    let items = vec![
+    let row1 = vec![
         format_option("a", "Archive", opts.archive),
         format_option("v", "Verbose", opts.verbose),
         format_option("z", "Compress", opts.compress),
         format_option("n", "Dry-run", opts.dry_run),
-        format_option("p", "Progress", opts.progress),
+        format_option("p", "Progress/file", opts.progress),
         format_option("d", "Delete", opts.delete),
+    ];
+    let row2 = vec![
         format_option("h", "Human", opts.human_readable),
         format_option("e", "SSH", opts.use_ssh),
+        format_option("r", "DelSrc", opts.delete_source),
+        format_option("x", "DelExcl", opts.delete_excluded),
+        format_option("f", "GlobalProgress", opts.progress_per_file),
     ];
 
-    let options_text = items.join("  ");
+    let options_text = format!("{}\n{}", row1.join("  "), row2.join("  "));
     let style = panel_style(app.active_panel == Panel::Options);
 
     let options = Paragraph::new(options_text).block(
@@ -195,8 +200,8 @@ fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
 
 fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     let help_text = match (&app.mode, &app.active_panel) {
-        (Mode::Normal, Panel::Logs) => "[1-5/j/k] Panels  [Enter] Run  [i] Insert  [a/v/z/n/p/d/h/e] Options  [q] Quit",
-        (Mode::Normal, _) => "[1-5/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e] Options  [Ctrl+s] Sync  [q] Quit",
+        (Mode::Normal, Panel::Logs) => "[1-5/j/k] Panels  [Enter] Run  [i] Insert  [a/v/z/n/p/d/h/e/r/x/f] Options  [q] Quit",
+        (Mode::Normal, _) => "[1-5/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e/r/x/f] Options  [Ctrl+s] Sync  [q] Quit",
         (Mode::Insert, _) => "[Esc] Normal  [Enter] Next  [Tab] Autocomplete  [Ctrl+s] Sync  [Ctrl+n] Dry-run",
     };
     let help = Paragraph::new(help_text)
