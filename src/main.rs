@@ -113,6 +113,8 @@ fn handle_normal_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
         KeyCode::Char('d') => app.options.toggle(5), // Delete
         KeyCode::Char('h') => app.options.toggle(6), // Human-readable
         KeyCode::Char('e') => app.options.toggle(7), // SSH
+        KeyCode::Char('r') => app.options.toggle(8), // Delete source
+        KeyCode::Char('f') => app.options.toggle(9), // Global progress
 
         _ => {}
     }
@@ -234,6 +236,28 @@ fn run_rsync(app: &mut App, dry_run: bool) {
                     if status.success() {
                         app.progress_percentage = 100.0;
                         app.log("Sync completed successfully".to_string());
+
+                        // Clean up empty directories if delete_source is enabled
+                        if opts.delete_source && !app.source.is_empty() {
+                            app.log("Cleaning up empty source directories...".to_string());
+                            let find_result = Command::new("find")
+                                .args([&app.source, "-type", "d", "-empty", "-delete"])
+                                .output();
+
+                            match find_result {
+                                Ok(output) => {
+                                    if output.status.success() {
+                                        app.log("Empty directories removed".to_string());
+                                    } else {
+                                        let stderr = String::from_utf8_lossy(&output.stderr);
+                                        app.log(format!("Find command failed: {}", stderr));
+                                    }
+                                }
+                                Err(e) => {
+                                    app.log(format!("Failed to run find: {}", e));
+                                }
+                            }
+                        }
                     } else {
                         app.log(format!("Sync failed with exit code: {:?}", status.code()));
                     }

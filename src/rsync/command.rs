@@ -29,6 +29,12 @@ pub fn build_command(source: &str, destination: &str, options: &RsyncOptions) ->
         args.push("-e".to_string());
         args.push("ssh".to_string());
     }
+    if options.delete_source {
+        args.push("--remove-source-files".to_string());
+    }
+    if options.progress_per_file {
+        args.push("--info=progress2".to_string());
+    }
 
     for pattern in &options.exclude {
         args.push("--exclude".to_string());
@@ -43,7 +49,14 @@ pub fn build_command(source: &str, destination: &str, options: &RsyncOptions) ->
 
 /// Format command as display string
 pub fn format_command(source: &str, destination: &str, options: &RsyncOptions) -> String {
-    build_command(source, destination, options).join(" ")
+    let mut cmd = build_command(source, destination, options).join(" ");
+
+    // Show the find command that will run after rsync if delete_source is enabled
+    if options.delete_source && !source.is_empty() {
+        cmd.push_str(&format!(" \\\n  && find {} -type d -empty -delete", source));
+    }
+
+    cmd
 }
 
 #[cfg(test)]
@@ -125,10 +138,30 @@ mod tests {
             delete: false,
             human_readable: false,
             use_ssh: false,
+            delete_source: false,
+            progress_per_file: false,
             exclude: vec![],
         };
         let cmd = build_command("/src", "/dest", &opts);
 
         assert_eq!(cmd, vec!["rsync", "/src", "/dest"]);
+    }
+
+    #[test]
+    fn test_delete_source_flag() {
+        let mut opts = RsyncOptions::default();
+        opts.delete_source = true;
+        let cmd = build_command("/src", "/dest", &opts);
+
+        assert!(cmd.contains(&"--remove-source-files".to_string()));
+    }
+
+    #[test]
+    fn test_progress_per_file_flag() {
+        let mut opts = RsyncOptions::default();
+        opts.progress_per_file = true;
+        let cmd = build_command("/src", "/dest", &opts);
+
+        assert!(cmd.contains(&"--info=progress2".to_string()));
     }
 }
