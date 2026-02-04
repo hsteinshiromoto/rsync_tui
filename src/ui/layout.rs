@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Gauge, List, ListItem, Padding, Paragraph},
     Frame,
 };
 
@@ -18,7 +18,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             Constraint::Length(3),  // Source (100% width)
             Constraint::Length(3),  // Destination (100% width)
             Constraint::Length(6),  // Options (2 rows)
-            Constraint::Length(6),  // Logs
+            Constraint::Length(7),  // Logs (multiline command support)
             Constraint::Min(6),     // Progress
             Constraint::Length(3),  // Help bar
         ])
@@ -47,7 +47,7 @@ fn render_title(frame: &mut Frame, area: Rect, app: &App) {
         Span::styled("rsync TUI ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
         Span::styled(mode_str, Style::default().fg(mode_color).add_modifier(Modifier::BOLD)),
     ]))
-    .block(Block::default().borders(Borders::ALL));
+    .block(Block::default().borders(Borders::ALL).padding(Padding::horizontal(1)));
     frame.render_widget(title, area);
 }
 
@@ -67,7 +67,8 @@ fn render_source(frame: &mut Frame, area: Rect, app: &App) {
         Block::default()
             .title("[1] Source")
             .borders(Borders::ALL)
-            .border_style(style),
+            .border_style(style)
+            .padding(Padding::horizontal(1)),
     );
     frame.render_widget(source, area);
 }
@@ -88,7 +89,8 @@ fn render_destination(frame: &mut Frame, area: Rect, app: &App) {
         Block::default()
             .title("[2] Destination")
             .borders(Borders::ALL)
-            .border_style(style),
+            .border_style(style)
+            .padding(Padding::horizontal(1)),
     );
     frame.render_widget(dest, area);
 }
@@ -118,7 +120,8 @@ fn render_options(frame: &mut Frame, area: Rect, app: &App) {
         Block::default()
             .title("[3] Options")
             .borders(Borders::ALL)
-            .border_style(style),
+            .border_style(style)
+            .padding(Padding::horizontal(1)),
     );
     frame.render_widget(options, area);
 }
@@ -126,15 +129,29 @@ fn render_options(frame: &mut Frame, area: Rect, app: &App) {
 fn render_logs(frame: &mut Frame, area: Rect, app: &App) {
     let style = panel_style(app.active_panel == Panel::Logs);
 
+    // Calculate available width: area - borders(2) - padding(2) - prefix(2)
+    let inner_width = area.width.saturating_sub(6) as usize;
+
     // Show command preview at top, then logs
     let cmd = format_command(&app.source, &app.destination, &app.options);
-    let mut lines: Vec<ListItem> = vec![
-        ListItem::new(Line::from(vec![
-            Span::styled("> ", Style::default().fg(Color::Green)),
-            Span::raw(cmd),
-        ])),
-        ListItem::new(""),
-    ];
+    let mut lines: Vec<ListItem> = Vec::new();
+
+    // Wrap command lines to fit within panel width
+    let wrapped_lines = wrap_command(&cmd, inner_width);
+    for (i, line) in wrapped_lines.iter().enumerate() {
+        if i == 0 {
+            lines.push(ListItem::new(Line::from(vec![
+                Span::styled("> ", Style::default().fg(Color::Green)),
+                Span::raw(line.clone()),
+            ])));
+        } else {
+            lines.push(ListItem::new(Line::from(vec![
+                Span::styled("  ", Style::default().fg(Color::Green)),
+                Span::raw(line.clone()),
+            ])));
+        }
+    }
+    lines.push(ListItem::new(""));
 
     // Add log entries
     for log in app.logs.iter().rev().take(20) {
@@ -145,9 +162,58 @@ fn render_logs(frame: &mut Frame, area: Rect, app: &App) {
         Block::default()
             .title("[4] Preview / Logs")
             .borders(Borders::ALL)
-            .border_style(style),
+            .border_style(style)
+            .padding(Padding::horizontal(1)),
     );
     frame.render_widget(logs, area);
+}
+
+/// Wrap command string to fit within given width, using \ for continuation
+fn wrap_command(cmd: &str, max_width: usize) -> Vec<String> {
+    let mut result = Vec::new();
+
+    for line in cmd.split('\n') {
+        let line = line.trim_start();
+        if line.len() <= max_width {
+            result.push(line.to_string());
+        } else {
+            // Wrap long lines
+            let mut remaining = line;
+            let mut is_first = true;
+            while !remaining.is_empty() {
+                // Reserve space for " \" continuation on non-final segments
+                let wrap_at = if remaining.len() > max_width {
+                    max_width.saturating_sub(2)
+                } else {
+                    remaining.len()
+                };
+
+                // Try to break at a space
+                let break_pos = if wrap_at < remaining.len() {
+                    remaining[..wrap_at]
+                        .rfind(' ')
+                        .map(|p| p + 1)
+                        .unwrap_or(wrap_at)
+                } else {
+                    wrap_at
+                };
+
+                let (chunk, rest) = remaining.split_at(break_pos);
+                let chunk = chunk.trim_end();
+
+                if rest.is_empty() || rest.trim().is_empty() {
+                    result.push(if is_first { chunk.to_string() } else { format!("  {}", chunk) });
+                } else {
+                    result.push(if is_first { format!("{} \\", chunk) } else { format!("  {} \\", chunk) });
+                }
+
+                remaining = rest.trim_start();
+                is_first = false;
+            }
+        }
+    }
+
+    result
 }
 
 fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
@@ -174,7 +240,8 @@ fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
             Block::default()
                 .title("[5] Progress")
                 .borders(Borders::ALL)
-                .border_style(style),
+                .border_style(style)
+                .padding(Padding::horizontal(1)),
         )
         .gauge_style(Style::default().fg(Color::Cyan).bg(Color::DarkGray))
         .percent(app.progress_percentage as u16)
@@ -193,7 +260,8 @@ fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
     let output = List::new(output_lines).block(
         Block::default()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
-            .border_style(style),
+            .border_style(style)
+            .padding(Padding::horizontal(1)),
     );
     frame.render_widget(output, inner_chunks[1]);
 }
@@ -206,7 +274,7 @@ fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     };
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
-        .block(Block::default().borders(Borders::ALL));
+        .block(Block::default().borders(Borders::ALL).padding(Padding::horizontal(1)));
     frame.render_widget(help, area);
 }
 

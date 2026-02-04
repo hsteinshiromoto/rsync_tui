@@ -52,7 +52,14 @@ pub fn build_command(source: &str, destination: &str, options: &RsyncOptions) ->
 
 /// Format command as display string
 pub fn format_command(source: &str, destination: &str, options: &RsyncOptions) -> String {
-    build_command(source, destination, options).join(" ")
+    let mut cmd = build_command(source, destination, options).join(" ");
+
+    // Show the find command that will run after rsync if delete_source is enabled
+    if options.delete_source && !source.is_empty() {
+        cmd.push_str(&format!(" \\\n  && find {} -type d -empty -delete", source));
+    }
+
+    cmd
 }
 
 #[cfg(test)]
