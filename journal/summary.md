@@ -21,7 +21,7 @@ A terminal user interface (TUI) for rsync, inspired by lazygit's clean design an
 - Rsync execution with progress capture
 - Dry-run support (Ctrl+n)
 - Path autocomplete (Tab in Insert mode)
-- Charm-inspired visual theme (rounded borders, pill badges, RGB colors)
+- Tokyo Night visual theme (rounded borders, pill badges, RGB colors)
 
 ### Rsync Options Supported
 | Key | Flag | Description |
@@ -41,6 +41,7 @@ A terminal user interface (TUI) for rsync, inspired by lazygit's clean design an
 - 2025-02-01: Project planning and initial setup
 - 2026-02-02: MVP implementation (core structure, TUI, rsync integration)
 - 2026-02-22: Visual modernization (Charm-inspired theme, ratatui 0.27 upgrade)
+- 2026-02-22: Tokyo Night color scheme, consolidated duplicate theme constants
 
 ## Architecture
 
