@@ -1,53 +1,63 @@
 # rsync_tui - Implementation Summary
 
 ## Project Overview
-A terminal user interface (TUI) for rsync, inspired by lazygit's clean design.
+A terminal user interface (TUI) for rsync, inspired by lazygit's clean design and the Charm ecosystem's visual aesthetic.
 
 ## Technology Stack
 - Language: Rust
-- TUI Library: Ratatui 0.26
-- Terminal Backend: Crossterm 0.27
+- TUI Library: Ratatui 0.27
+- Terminal Backend: Crossterm (via ratatui re-export)
 - Config Format: JSON (planned)
 - Transport: rsync with SSH support
 
-## Current Status: MVP Complete
+## Current Status: MVP Complete + Visual Modernization
 
 ### Implemented Features
-- Panel-based TUI layout (Source, Destination, Options, Logs)
-- Keyboard navigation between panels
-- 8 toggleable rsync options (1-8 keys)
-- Live command preview
-- Rsync execution with output capture
+- Panel-based TUI layout (Source, Destination, Options, Logs, Progress)
+- Keyboard navigation between panels (Tab, Shift+Tab, j/k, 1-5)
+- Vim-style Normal/Insert modes
+- 10 toggleable rsync options (letter keys in Normal mode)
+- Live command preview with text wrapping
+- Rsync execution with progress capture
 - Dry-run support (Ctrl+n)
+- Path autocomplete (Tab in Insert mode)
+- Charm-inspired visual theme (rounded borders, pill badges, RGB colors)
 
 ### Rsync Options Supported
 | Key | Flag | Description |
 |-----|------|-------------|
-| 1 | `-a` | Archive mode |
-| 2 | `-v` | Verbose |
-| 3 | `-z` | Compress |
-| 4 | `-n` | Dry-run |
-| 5 | `--progress` | Progress |
-| 6 | `--delete` | Delete extraneous |
-| 7 | `-h` | Human-readable |
-| 8 | `-e ssh` | Use SSH |
+| a | `-a` | Archive mode |
+| v | `-v` | Verbose |
+| z | `-z` | Compress |
+| n | `-n` | Dry-run |
+| p | `--progress` | Progress per file |
+| d | `--delete` | Delete extraneous |
+| h | `-h` | Human-readable |
+| e | `-e ssh` | Use SSH |
+| r | `--remove-source-files` | Delete source |
+| f | `--info=progress2` | Global progress |
 
 ## Development Timeline
 - 2025-02-01: Project planning and initial setup
 - 2026-02-02: MVP implementation (core structure, TUI, rsync integration)
+- 2026-02-22: Visual modernization (Charm-inspired theme, ratatui 0.27 upgrade)
 
 ## Architecture
 
 ```
 src/
-├── main.rs           # Entry point, event loop
-├── app.rs            # Application state (App, Panel)
-├── event.rs          # Keyboard event handling
+├── main.rs           # Entry point, event loop, keyboard handling
+├── app.rs            # Application state (App, Panel, Mode)
+├── event.rs          # Keyboard event polling
+├── path.rs           # Path autocomplete with tilde expansion
 ├── ui/
-│   └── layout.rs     # Panel rendering
+│   ├── mod.rs        # Module declarations
+│   ├── layout.rs     # Panel rendering (7 render functions)
+│   └── theme.rs      # Centralized color palette and style helpers
 └── rsync/
-    ├── command.rs    # Command builder
-    └── options.rs    # Option definitions
+    ├── mod.rs        # Module declarations
+    ├── command.rs    # Command builder and formatter
+    └── options.rs    # RsyncOptions struct and toggle logic
 ```
 
 ## Design Principles
@@ -55,9 +65,9 @@ src/
 - Simple, readable code for non-Rust developers
 - Modular: each file handles one responsibility
 - MVP-first: 80% of features with 20% of code
+- Centralized theming via theme.rs
 
 ## Pending Features
 - JSON configuration persistence
 - Exclude pattern UI
-- Unit tests
-- Path autocomplete
+- Upgrade Rust toolchain (nix) for ratatui 0.30+

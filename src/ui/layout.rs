@@ -43,14 +43,14 @@ fn render_title(frame: &mut Frame, area: Rect, app: &App) {
     let title = Paragraph::new(Line::from(vec![
         Span::styled(
             " rsync TUI ",
-            Style::default().fg(theme::LAVENDER).add_modifier(Modifier::BOLD),
+            Style::default().fg(theme::PURPLE).add_modifier(Modifier::BOLD),
         ),
         Span::styled(mode_str, theme::mode_badge(is_normal)),
     ]))
     .block(
         Block::bordered()
             .border_type(BorderType::Rounded)
-            .border_style(Style::default().fg(theme::PURPLE))
+            .border_style(Style::default().fg(theme::BLUE))
             .padding(Padding::horizontal(1)),
     );
     frame.render_widget(title, area);
@@ -156,7 +156,7 @@ fn render_logs(frame: &mut Frame, area: Rect, app: &App) {
     for (i, line) in wrapped_lines.iter().enumerate() {
         let prefix = if i == 0 { "> " } else { "  " };
         lines.push(ListItem::new(Line::from(vec![
-            Span::styled(prefix, Style::default().fg(theme::SUCCESS)),
+            Span::styled(prefix, Style::default().fg(theme::GREEN)),
             Span::styled(line.clone(), theme::text_primary()),
         ])));
     }
@@ -164,7 +164,7 @@ fn render_logs(frame: &mut Frame, area: Rect, app: &App) {
 
     for log in app.logs.iter().rev().take(20) {
         let style = if log.starts_with("[ERR]") {
-            Style::default().fg(theme::ERROR)
+            Style::default().fg(theme::RED)
         } else {
             Style::default().fg(theme::TEXT_SECONDARY)
         };
@@ -281,7 +281,7 @@ fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
         .take(10)
         .map(|line| {
             let style = if line.starts_with("[ERR]") {
-                Style::default().fg(theme::ERROR)
+                Style::default().fg(theme::RED)
             } else {
                 Style::default().fg(theme::TEXT_SECONDARY)
             };
@@ -346,7 +346,7 @@ fn format_option_pill<'a>(key: &'a str, name: &'a str, enabled: bool) -> Vec<Spa
     let key_style = if enabled {
         Style::default()
             .fg(theme::PILL_ENABLED_FG)
-            .bg(theme::PINK)
+            .bg(theme::CYAN)
             .add_modifier(Modifier::BOLD)
     } else {
         Style::default()

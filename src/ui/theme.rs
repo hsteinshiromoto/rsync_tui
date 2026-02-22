@@ -1,43 +1,44 @@
 use ratatui::style::{Color, Modifier, Style};
 
-// Primary palette (Charm-inspired)
-pub const PURPLE: Color = Color::Rgb(124, 58, 237);
-pub const PINK: Color = Color::Rgb(236, 72, 153);
-pub const LAVENDER: Color = Color::Rgb(167, 139, 250);
+// Tokyo Night base palette
+pub const BLUE: Color = Color::Rgb(122, 162, 247);      // #7aa2f7 - Primary accent
+pub const PURPLE: Color = Color::Rgb(187, 154, 247);    // #bb9af7 - Secondary accent
+pub const CYAN: Color = Color::Rgb(125, 207, 255);      // #7dcfff - Highlights
+pub const GREEN: Color = Color::Rgb(115, 218, 202);     // #73daca - Success
+pub const RED: Color = Color::Rgb(247, 118, 142);       // #f7768e - Errors
+pub const ORANGE: Color = Color::Rgb(255, 158, 100);    // #ff9e64 - Warnings
+const BG_DARK: Color = Color::Rgb(26, 27, 38);          // #1a1b26 - Background
+const TERMINAL_BLACK: Color = Color::Rgb(65, 72, 104);  // #414868 - Terminal black
 
 // Semantic colors
-pub const INACTIVE_BORDER: Color = Color::Rgb(75, 85, 99);
-pub const TEXT_PRIMARY: Color = Color::Rgb(229, 231, 235);
-pub const TEXT_SECONDARY: Color = Color::Rgb(156, 163, 175);
-pub const TEXT_PLACEHOLDER: Color = Color::Rgb(107, 114, 128);
-
-// Status colors
-pub const SUCCESS: Color = Color::Rgb(52, 211, 153);
-pub const ERROR: Color = Color::Rgb(248, 113, 113);
+pub const INACTIVE_BORDER: Color = TERMINAL_BLACK;
+pub const TEXT_PRIMARY: Color = Color::Rgb(192, 202, 245);   // #c0caf5 - Terminal white
+pub const TEXT_SECONDARY: Color = Color::Rgb(169, 177, 214); // #a9b1d6 - Foreground
+pub const TEXT_PLACEHOLDER: Color = Color::Rgb(86, 95, 137); // #565f89 - Comments
 
 // Progress bar
-pub const PROGRESS_FILLED: Color = Color::Rgb(124, 58, 237);
-pub const PROGRESS_UNFILLED: Color = Color::Rgb(55, 65, 81);
+pub const PROGRESS_FILLED: Color = BLUE;
+pub const PROGRESS_UNFILLED: Color = TERMINAL_BLACK;
 
 // Option pills
-pub const PILL_ENABLED_BG: Color = Color::Rgb(124, 58, 237);
-pub const PILL_ENABLED_FG: Color = Color::Rgb(255, 255, 255);
-pub const PILL_DISABLED_BG: Color = Color::Rgb(55, 65, 81);
-pub const PILL_DISABLED_FG: Color = Color::Rgb(156, 163, 175);
+pub const PILL_ENABLED_BG: Color = BLUE;
+pub const PILL_ENABLED_FG: Color = BG_DARK;
+pub const PILL_DISABLED_BG: Color = TERMINAL_BLACK;
+pub const PILL_DISABLED_FG: Color = TEXT_SECONDARY;
 
 // Help bar
-pub const KEY_HINT_FG: Color = Color::Rgb(167, 139, 250);
-pub const KEY_DESC_FG: Color = Color::Rgb(156, 163, 175);
+pub const KEY_HINT_FG: Color = PURPLE;
+pub const KEY_DESC_FG: Color = TEXT_SECONDARY;
 
 // Mode badge
-pub const MODE_NORMAL_BG: Color = Color::Rgb(20, 184, 166);
-pub const MODE_NORMAL_FG: Color = Color::Rgb(255, 255, 255);
-pub const MODE_INSERT_BG: Color = Color::Rgb(236, 72, 153);
-pub const MODE_INSERT_FG: Color = Color::Rgb(255, 255, 255);
+pub const MODE_NORMAL_BG: Color = GREEN;
+pub const MODE_NORMAL_FG: Color = BG_DARK;
+pub const MODE_INSERT_BG: Color = ORANGE;
+pub const MODE_INSERT_FG: Color = BG_DARK;
 
 pub fn border_style(active: bool) -> Style {
     if active {
-        Style::default().fg(PURPLE)
+        Style::default().fg(BLUE)
     } else {
         Style::default().fg(INACTIVE_BORDER)
     }
@@ -45,7 +46,7 @@ pub fn border_style(active: bool) -> Style {
 
 pub fn title_style(active: bool) -> Style {
     if active {
-        Style::default().fg(LAVENDER).add_modifier(Modifier::BOLD)
+        Style::default().fg(PURPLE).add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(TEXT_SECONDARY)
     }
