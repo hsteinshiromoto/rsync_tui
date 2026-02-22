@@ -6,7 +6,7 @@ mod ui;
 
 use std::io;
 use app::{App, Mode, Panel};
-use crossterm::{
+use ratatui::crossterm::{
     event::{KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -72,7 +72,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
     Ok(())
 }
 
-fn handle_normal_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
+fn handle_normal_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) {
     match key.code {
         // Quit
         KeyCode::Char('q') => app.should_quit = true,
@@ -120,7 +120,7 @@ fn handle_normal_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
     }
 }
 
-fn handle_insert_mode(app: &mut App, key: &crossterm::event::KeyEvent) {
+fn handle_insert_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) {
     match key.code {
         // Exit insert mode
         KeyCode::Esc => app.mode = Mode::Normal,

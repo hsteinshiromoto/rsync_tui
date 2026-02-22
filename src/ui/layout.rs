@@ -1,11 +1,12 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, List, ListItem, Padding, Paragraph},
+    widgets::{Block, BorderType, Borders, Gauge, List, ListItem, Padding, Paragraph},
     Frame,
 };
 
+use super::theme;
 use crate::app::{App, Mode, Panel};
 use crate::rsync::command::format_command;
 
@@ -14,13 +15,13 @@ pub fn render(frame: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Length(3),  // Source (100% width)
-            Constraint::Length(3),  // Destination (100% width)
-            Constraint::Length(6),  // Options (2 rows)
-            Constraint::Length(7),  // Logs (multiline command support)
-            Constraint::Min(6),     // Progress
-            Constraint::Length(3),  // Help bar
+            Constraint::Length(3), // Title
+            Constraint::Length(3), // Source
+            Constraint::Length(3), // Destination
+            Constraint::Length(6), // Options (2 rows)
+            Constraint::Length(7), // Logs
+            Constraint::Min(6),   // Progress
+            Constraint::Length(3), // Help bar
         ])
         .split(frame.size());
 
@@ -34,134 +35,152 @@ pub fn render(frame: &mut Frame, app: &App) {
 }
 
 fn render_title(frame: &mut Frame, area: Rect, app: &App) {
-    let mode_str = match app.mode {
-        Mode::Normal => "[NORMAL]",
-        Mode::Insert => "[INSERT]",
-    };
-    let mode_color = match app.mode {
-        Mode::Normal => Color::Green,
-        Mode::Insert => Color::Yellow,
+    let (mode_str, is_normal) = match app.mode {
+        Mode::Normal => (" NORMAL ", true),
+        Mode::Insert => (" INSERT ", false),
     };
 
     let title = Paragraph::new(Line::from(vec![
-        Span::styled("rsync TUI ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-        Span::styled(mode_str, Style::default().fg(mode_color).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " rsync TUI ",
+            Style::default().fg(theme::LAVENDER).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(mode_str, theme::mode_badge(is_normal)),
     ]))
-    .block(Block::default().borders(Borders::ALL).padding(Padding::horizontal(1)));
+    .block(
+        Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme::PURPLE))
+            .padding(Padding::horizontal(1)),
+    );
     frame.render_widget(title, area);
 }
 
 fn render_source(frame: &mut Frame, area: Rect, app: &App) {
-    let style = panel_style(app.active_panel == Panel::Source);
-    let source = Paragraph::new(if app.source.is_empty() {
-        "<enter source path>".to_string()
+    let active = app.active_panel == Panel::Source;
+    let (display_text, content_style) = if app.source.is_empty() {
+        ("enter source path...".to_string(), theme::text_placeholder())
     } else {
-        app.source.clone()
-    })
-    .style(if app.source.is_empty() {
-        Style::default().fg(Color::DarkGray)
-    } else {
-        Style::default()
-    })
-    .block(
-        Block::default()
-            .title("[1] Source")
-            .borders(Borders::ALL)
-            .border_style(style)
-            .padding(Padding::horizontal(1)),
-    );
+        (app.source.clone(), theme::text_primary())
+    };
+
+    let title_line = Line::from(vec![
+        Span::styled(" 1 ", theme::pill_style(active)),
+        Span::styled(" Source ", theme::title_style(active)),
+    ]);
+
+    let source = Paragraph::new(display_text)
+        .style(content_style)
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .title(title_line)
+                .border_style(theme::border_style(active))
+                .padding(Padding::horizontal(1)),
+        );
     frame.render_widget(source, area);
 }
 
 fn render_destination(frame: &mut Frame, area: Rect, app: &App) {
-    let style = panel_style(app.active_panel == Panel::Destination);
-    let dest = Paragraph::new(if app.destination.is_empty() {
-        "<enter destination path>".to_string()
+    let active = app.active_panel == Panel::Destination;
+    let (display_text, content_style) = if app.destination.is_empty() {
+        ("enter destination path...".to_string(), theme::text_placeholder())
     } else {
-        app.destination.clone()
-    })
-    .style(if app.destination.is_empty() {
-        Style::default().fg(Color::DarkGray)
-    } else {
-        Style::default()
-    })
-    .block(
-        Block::default()
-            .title("[2] Destination")
-            .borders(Borders::ALL)
-            .border_style(style)
-            .padding(Padding::horizontal(1)),
-    );
+        (app.destination.clone(), theme::text_primary())
+    };
+
+    let title_line = Line::from(vec![
+        Span::styled(" 2 ", theme::pill_style(active)),
+        Span::styled(" Destination ", theme::title_style(active)),
+    ]);
+
+    let dest = Paragraph::new(display_text)
+        .style(content_style)
+        .block(
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .title(title_line)
+                .border_style(theme::border_style(active))
+                .padding(Padding::horizontal(1)),
+        );
     frame.render_widget(dest, area);
 }
 
 fn render_options(frame: &mut Frame, area: Rect, app: &App) {
     let opts = &app.options;
-    let row1 = vec![
-        format_option("a", "Archive", opts.archive),
-        format_option("v", "Verbose", opts.verbose),
-        format_option("z", "Compress", opts.compress),
-        format_option("n", "Dry-run", opts.dry_run),
-        format_option("p", "Progress/file", opts.progress),
-        format_option("d", "Delete", opts.delete),
-    ];
-    let row2 = vec![
-        format_option("h", "Human", opts.human_readable),
-        format_option("e", "SSH", opts.use_ssh),
-        format_option("r", "DelSrc", opts.delete_source),
-        format_option("f", "GlobalProgress", opts.progress_per_file),
-    ];
+    let active = app.active_panel == Panel::Options;
 
-    let options_text = format!("{}\n{}", row1.join("  "), row2.join("  "));
-    let style = panel_style(app.active_panel == Panel::Options);
+    let mut row1_spans: Vec<Span> = Vec::new();
+    row1_spans.extend(format_option_pill("a", "Archive", opts.archive));
+    row1_spans.extend(format_option_pill("v", "Verbose", opts.verbose));
+    row1_spans.extend(format_option_pill("z", "Compress", opts.compress));
+    row1_spans.extend(format_option_pill("n", "Dry-run", opts.dry_run));
+    row1_spans.extend(format_option_pill("p", "Progress", opts.progress));
+    row1_spans.extend(format_option_pill("d", "Delete", opts.delete));
 
-    let options = Paragraph::new(options_text).block(
-        Block::default()
-            .title("[3] Options")
-            .borders(Borders::ALL)
-            .border_style(style)
+    let mut row2_spans: Vec<Span> = Vec::new();
+    row2_spans.extend(format_option_pill("h", "Human", opts.human_readable));
+    row2_spans.extend(format_option_pill("e", "SSH", opts.use_ssh));
+    row2_spans.extend(format_option_pill("r", "DelSrc", opts.delete_source));
+    row2_spans.extend(format_option_pill("f", "Global", opts.progress_per_file));
+
+    let title_line = Line::from(vec![
+        Span::styled(" 3 ", theme::pill_style(active)),
+        Span::styled(" Options ", theme::title_style(active)),
+    ]);
+
+    let text = ratatui::text::Text::from(vec![
+        Line::from(row1_spans),
+        Line::from(vec![Span::raw("")]),
+        Line::from(row2_spans),
+    ]);
+
+    let options = Paragraph::new(text).block(
+        Block::bordered()
+            .border_type(BorderType::Rounded)
+            .title(title_line)
+            .border_style(theme::border_style(active))
             .padding(Padding::horizontal(1)),
     );
     frame.render_widget(options, area);
 }
 
 fn render_logs(frame: &mut Frame, area: Rect, app: &App) {
-    let style = panel_style(app.active_panel == Panel::Logs);
-
-    // Calculate available width: area - borders(2) - padding(2) - prefix(2)
+    let active = app.active_panel == Panel::Logs;
     let inner_width = area.width.saturating_sub(6) as usize;
 
-    // Show command preview at top, then logs
     let cmd = format_command(&app.source, &app.destination, &app.options);
     let mut lines: Vec<ListItem> = Vec::new();
 
-    // Wrap command lines to fit within panel width
     let wrapped_lines = wrap_command(&cmd, inner_width);
     for (i, line) in wrapped_lines.iter().enumerate() {
-        if i == 0 {
-            lines.push(ListItem::new(Line::from(vec![
-                Span::styled("> ", Style::default().fg(Color::Green)),
-                Span::raw(line.clone()),
-            ])));
-        } else {
-            lines.push(ListItem::new(Line::from(vec![
-                Span::styled("  ", Style::default().fg(Color::Green)),
-                Span::raw(line.clone()),
-            ])));
-        }
+        let prefix = if i == 0 { "> " } else { "  " };
+        lines.push(ListItem::new(Line::from(vec![
+            Span::styled(prefix, Style::default().fg(theme::SUCCESS)),
+            Span::styled(line.clone(), theme::text_primary()),
+        ])));
     }
     lines.push(ListItem::new(""));
 
-    // Add log entries
     for log in app.logs.iter().rev().take(20) {
-        lines.push(ListItem::new(log.as_str()));
+        let style = if log.starts_with("[ERR]") {
+            Style::default().fg(theme::ERROR)
+        } else {
+            Style::default().fg(theme::TEXT_SECONDARY)
+        };
+        lines.push(ListItem::new(Span::styled(log.as_str(), style)));
     }
 
+    let title_line = Line::from(vec![
+        Span::styled(" 4 ", theme::pill_style(active)),
+        Span::styled(" Preview / Logs ", theme::title_style(active)),
+    ]);
+
     let logs = List::new(lines).block(
-        Block::default()
-            .title("[4] Preview / Logs")
-            .borders(Borders::ALL)
-            .border_style(style)
+        Block::bordered()
+            .border_type(BorderType::Rounded)
+            .title(title_line)
+            .border_style(theme::border_style(active))
             .padding(Padding::horizontal(1)),
     );
     frame.render_widget(logs, area);
@@ -176,18 +195,15 @@ fn wrap_command(cmd: &str, max_width: usize) -> Vec<String> {
         if line.len() <= max_width {
             result.push(line.to_string());
         } else {
-            // Wrap long lines
             let mut remaining = line;
             let mut is_first = true;
             while !remaining.is_empty() {
-                // Reserve space for " \" continuation on non-final segments
                 let wrap_at = if remaining.len() > max_width {
                     max_width.saturating_sub(2)
                 } else {
                     remaining.len()
                 };
 
-                // Try to break at a space
                 let break_pos = if wrap_at < remaining.len() {
                     remaining[..wrap_at]
                         .rfind(' ')
@@ -201,9 +217,17 @@ fn wrap_command(cmd: &str, max_width: usize) -> Vec<String> {
                 let chunk = chunk.trim_end();
 
                 if rest.is_empty() || rest.trim().is_empty() {
-                    result.push(if is_first { chunk.to_string() } else { format!("  {}", chunk) });
+                    result.push(if is_first {
+                        chunk.to_string()
+                    } else {
+                        format!("  {}", chunk)
+                    });
                 } else {
-                    result.push(if is_first { format!("{} \\", chunk) } else { format!("  {} \\", chunk) });
+                    result.push(if is_first {
+                        format!("{} \\", chunk)
+                    } else {
+                        format!("  {} \\", chunk)
+                    });
                 }
 
                 remaining = rest.trim_start();
@@ -216,76 +240,124 @@ fn wrap_command(cmd: &str, max_width: usize) -> Vec<String> {
 }
 
 fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
-    let style = panel_style(app.active_panel == Panel::Progress);
+    let active = app.active_panel == Panel::Progress;
 
-    // Split area: top for gauge, bottom for output
     let inner_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // Progress bar
-            Constraint::Min(1),    // Output lines
+            Constraint::Min(1),   // Output lines
         ])
         .split(area);
 
-    // Progress bar with percentage
     let label = if app.transfer_info.is_empty() {
         format!("{:.0}%", app.progress_percentage)
     } else {
         format!("{:.0}% - {}", app.progress_percentage, app.transfer_info)
     };
 
+    let title_line = Line::from(vec![
+        Span::styled(" 5 ", theme::pill_style(active)),
+        Span::styled(" Progress ", theme::title_style(active)),
+    ]);
+
     let gauge = Gauge::default()
         .block(
-            Block::default()
-                .title("[5] Progress")
-                .borders(Borders::ALL)
-                .border_style(style)
+            Block::bordered()
+                .border_type(BorderType::Rounded)
+                .title(title_line)
+                .border_style(theme::border_style(active))
                 .padding(Padding::horizontal(1)),
         )
-        .gauge_style(Style::default().fg(Color::Cyan).bg(Color::DarkGray))
+        .gauge_style(theme::gauge_filled())
         .percent(app.progress_percentage as u16)
-        .label(label);
+        .label(Span::styled(label, theme::text_primary()));
     frame.render_widget(gauge, inner_chunks[0]);
 
-    // Rsync output lines
     let output_lines: Vec<ListItem> = app
         .progress_output
         .iter()
         .rev()
         .take(10)
-        .map(|line| ListItem::new(line.as_str()))
+        .map(|line| {
+            let style = if line.starts_with("[ERR]") {
+                Style::default().fg(theme::ERROR)
+            } else {
+                Style::default().fg(theme::TEXT_SECONDARY)
+            };
+            ListItem::new(Span::styled(line.as_str(), style))
+        })
         .collect();
 
     let output = List::new(output_lines).block(
         Block::default()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
-            .border_style(style)
+            .border_type(BorderType::Rounded)
+            .border_style(theme::border_style(active))
             .padding(Padding::horizontal(1)),
     );
     frame.render_widget(output, inner_chunks[1]);
 }
 
 fn render_help(frame: &mut Frame, area: Rect, app: &App) {
-    let help_text = match (&app.mode, &app.active_panel) {
-        (Mode::Normal, Panel::Logs) => "[1-5/j/k] Panels  [Enter] Run  [i] Insert  [a/v/z/n/p/d/h/e/r/f] Options  [q] Quit",
-        (Mode::Normal, _) => "[1-5/j/k] Panels  [i] Insert  [a/v/z/n/p/d/h/e/r/f] Options  [Ctrl+s] Sync  [q] Quit",
-        (Mode::Insert, _) => "[Esc] Normal  [Enter] Next  [Tab] Autocomplete  [Ctrl+s] Sync  [Ctrl+n] Dry-run",
+    let pairs: Vec<(&str, &str)> = match (&app.mode, &app.active_panel) {
+        (Mode::Normal, Panel::Logs) => vec![
+            ("1-5/j/k", "Panels"),
+            ("Enter", "Run"),
+            ("i", "Insert"),
+            ("a/v/z/n/p/d/h/e/r/f", "Options"),
+            ("q", "Quit"),
+        ],
+        (Mode::Normal, _) => vec![
+            ("1-5/j/k", "Panels"),
+            ("i", "Insert"),
+            ("a/v/z/n/p/d/h/e/r/f", "Options"),
+            ("Ctrl+s", "Sync"),
+            ("q", "Quit"),
+        ],
+        (Mode::Insert, _) => vec![
+            ("Esc", "Normal"),
+            ("Enter", "Next"),
+            ("Tab", "Complete"),
+            ("Ctrl+s", "Sync"),
+            ("Ctrl+n", "Dry-run"),
+        ],
     };
-    let help = Paragraph::new(help_text)
-        .style(Style::default().fg(Color::DarkGray))
-        .block(Block::default().borders(Borders::ALL).padding(Padding::horizontal(1)));
+
+    let mut spans: Vec<Span> = Vec::new();
+    for (i, (key, desc)) in pairs.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled("  ", theme::key_desc()));
+        }
+        spans.push(Span::styled(format!(" {} ", key), theme::key_hint()));
+        spans.push(Span::styled(format!(" {}", desc), theme::key_desc()));
+    }
+
+    let help = Paragraph::new(Line::from(spans)).block(
+        Block::bordered()
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme::INACTIVE_BORDER))
+            .padding(Padding::horizontal(1)),
+    );
     frame.render_widget(help, area);
 }
 
-fn panel_style(active: bool) -> Style {
-    if active {
-        Style::default().fg(Color::Yellow)
+fn format_option_pill<'a>(key: &'a str, name: &'a str, enabled: bool) -> Vec<Span<'a>> {
+    let key_style = if enabled {
+        Style::default()
+            .fg(theme::PILL_ENABLED_FG)
+            .bg(theme::PINK)
+            .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().fg(Color::White)
-    }
-}
+        Style::default()
+            .fg(theme::KEY_HINT_FG)
+            .bg(theme::PILL_DISABLED_BG)
+            .add_modifier(Modifier::BOLD)
+    };
 
-fn format_option(key: &str, name: &str, enabled: bool) -> String {
-    let check = if enabled { "x" } else { " " };
-    format!("[{}]{} {}", check, key, name)
+    vec![
+        Span::styled(format!(" {} ", key), key_style),
+        Span::styled(format!(" {} ", name), theme::pill_style(enabled)),
+        Span::raw(" "),
+    ]
 }
