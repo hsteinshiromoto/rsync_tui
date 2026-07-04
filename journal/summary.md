@@ -10,7 +10,9 @@ A terminal user interface (TUI) for rsync, inspired by lazygit's clean design an
 - Config Format: JSON (planned)
 - Transport: rsync with SSH support
 
-## Current Status: MVP Complete + Visual Modernization
+## Current Status: MVP Complete + Visual Modernization + Improvement Plan
+
+A full application review (2026-07-04) produced `docs/improvement_plan.md`: a three-phase roadmap fixing critical execution-core defects (synchronous rsync freezing the UI, a dry-run that deletes empty source dirs, pipe-deadlock risk), then UX/architecture work on ratatui 0.27, then the toolchain upgrade to ratatui 0.30.
 
 ### Implemented Features
 - Panel-based TUI layout (Source, Destination, Options, Logs, Progress)
@@ -42,6 +44,7 @@ A terminal user interface (TUI) for rsync, inspired by lazygit's clean design an
 - 2026-02-02: MVP implementation (core structure, TUI, rsync integration)
 - 2026-02-22: Visual modernization (Charm-inspired theme, ratatui 0.27 upgrade)
 - 2026-02-22: Tokyo Night color scheme, consolidated duplicate theme constants
+- 2026-07-04: Full application review and critique; improvement plan created at docs/improvement_plan.md (no code changes)
 
 ## Architecture
 
@@ -69,6 +72,7 @@ src/
 - Centralized theming via theme.rs
 
 ## Pending Features
-- JSON configuration persistence
-- Exclude pattern UI
-- Upgrade Rust toolchain (nix) for ratatui 0.30+
+Now tracked in `docs/improvement_plan.md` as a prioritised three-phase roadmap:
+- Phase 0: safety fixes (dry-run delete guard, panic hook, Makefile fix, dependency pruning)
+- Phase 1: threaded rsync runner (live progress, cancel), confirmation modal, cursor editing, JSON configuration persistence, exclude pattern UI, UI polish workstream (compact state-driven layout, running-state feedback, danger styling, path-input affordances, help overlay, 256-colour fallback)
+- Phase 2: upgrade Rust toolchain (nix) for ratatui 0.30+ (nix env currently inconsistent: rustc 1.81 vs clippy 1.95)
