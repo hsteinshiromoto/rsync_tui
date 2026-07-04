@@ -1,4 +1,4 @@
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{self, Event, KeyEvent};
 use std::time::Duration;
 
 /// Poll for keyboard events with timeout
@@ -9,21 +9,4 @@ pub fn poll_event(timeout_ms: u64) -> anyhow::Result<Option<KeyEvent>> {
         }
     }
     Ok(None)
-}
-
-/// Check if key is quit command (q or Ctrl+C)
-#[allow(dead_code)] // Reserved for future use
-pub fn is_quit(key: &KeyEvent) -> bool {
-    matches!(
-        key,
-        KeyEvent {
-            code: KeyCode::Char('q'),
-            modifiers: KeyModifiers::NONE,
-            ..
-        } | KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        }
-    )
 }

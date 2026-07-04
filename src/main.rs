@@ -5,15 +5,21 @@ mod rsync;
 mod ui;
 
 use std::io;
-use app::{App, Mode, Panel};
+use std::sync::mpsc::TryRecvError;
+
+use app::{App, Confirm, Mode, Panel};
 use ratatui::crossterm::{
     event::{KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
+use rsync::command::{build_command, describe_exit_code};
+use rsync::runner::{self, RsyncEvent};
 
 fn main() -> anyhow::Result<()> {
+    install_panic_hook();
+
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -33,15 +39,36 @@ fn main() -> anyhow::Result<()> {
     result
 }
 
+/// Restore the terminal before printing a panic so the shell stays usable
+fn install_panic_hook() {
+    let original = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen, ratatui::crossterm::cursor::Show);
+        original(info);
+    }));
+}
+
 fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> anyhow::Result<()> {
     loop {
+        drain_rsync_events(app);
         terminal.draw(|frame| ui::layout::render(frame, app))?;
 
         if let Some(key) = event::poll_event(100)? {
+            // A confirmation modal captures all input while open
+            if app.confirm.is_some() {
+                handle_confirm_key(app, &key);
+                continue;
+            }
+
             // Global commands (Ctrl+key, work in both modes)
             let handled = match key.code {
                 KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                    app.should_quit = true;
+                    if app.running {
+                        app.confirm = Some(Confirm::Cancel);
+                    } else {
+                        app.should_quit = true;
+                    }
                     true
                 }
                 KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -65,6 +92,7 @@ fn run(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> 
         }
 
         if app.should_quit {
+            cancel_rsync(app);
             break;
         }
     }
@@ -76,6 +104,9 @@ fn handle_normal_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
     match key.code {
         // Quit
         KeyCode::Char('q') => app.should_quit = true,
+
+        // Ask to cancel a running transfer
+        KeyCode::Esc if app.running => app.confirm = Some(Confirm::Cancel),
 
         // Panel navigation with Tab/Shift+Tab
         KeyCode::Tab => app.next_panel(),
@@ -104,18 +135,10 @@ fn handle_normal_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
             run_rsync(app, false);
         }
 
-        // Option toggles with letter keys
-        KeyCode::Char('a') => app.options.toggle(0), // Archive
-        KeyCode::Char('v') => app.options.toggle(1), // Verbose
-        KeyCode::Char('z') => app.options.toggle(2), // Compress
-        KeyCode::Char('n') => app.options.toggle(3), // Dry-run
-        KeyCode::Char('p') => app.options.toggle(4), // Progress
-        KeyCode::Char('d') => app.options.toggle(5), // Delete
-        KeyCode::Char('h') => app.options.toggle(6), // Human-readable
-        KeyCode::Char('e') => app.options.toggle(7), // SSH
-        KeyCode::Char('r') => app.options.toggle(8), // Delete source
-        KeyCode::Char('f') => app.options.toggle(9), // Global progress
-
+        // Option toggles via the shared OPTIONS table
+        KeyCode::Char(c) => {
+            app.options.toggle_key(c);
+        }
         _ => {}
     }
 }
@@ -174,122 +197,210 @@ fn handle_insert_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
     }
 }
 
+/// Gate a run request: refuse invalid state, confirm destructive runs
 fn run_rsync(app: &mut App, dry_run: bool) {
-    use std::io::{BufRead, BufReader};
-    use std::process::{Command, Stdio};
-    use crate::rsync::command::build_command;
+    if app.running {
+        app.log("A transfer is already running".to_string());
+        return;
+    }
+    if missing_paths(&app.source, &app.destination) {
+        app.log("Set both source and destination before running".to_string());
+        return;
+    }
 
+    let effective_dry = dry_run || app.options.dry_run;
+    if !effective_dry && app.options.has_destructive() {
+        app.confirm = Some(Confirm::Run { dry_run });
+        return;
+    }
+
+    start_rsync(app, dry_run);
+}
+
+/// Spawn rsync in the background; output arrives via drain_rsync_events
+fn start_rsync(app: &mut App, dry_run: bool) {
     let mut opts = app.options.clone();
     if dry_run {
         opts.dry_run = true;
     }
 
-    // Ensure progress flag is set to get progress output
-    opts.progress = true;
-
     let args = build_command(&app.source, &app.destination, &opts);
     app.log(format!("Running: {}", args.join(" ")));
-
-    // Clear progress state
     app.clear_progress();
-    app.running = true;
 
-    // Execute rsync with piped stdout for progress capture
-    let child = Command::new("rsync")
-        .args(&args[1..])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn();
-
-    match child {
-        Ok(mut proc) => {
-            // Read stdout for progress
-            if let Some(stdout) = proc.stdout.take() {
-                let reader = BufReader::new(stdout);
-                for line in reader.lines() {
-                    if let Ok(line_str) = line {
-                        // Parse progress from rsync output
-                        if let Some((percent, info)) = parse_progress(&line_str) {
-                            app.progress_percentage = percent;
-                            app.transfer_info = info;
-                        }
-                        app.progress_output.push(line_str.clone());
-                        app.log(line_str);
-                    }
-                }
-            }
-
-            // Read stderr
-            if let Some(stderr) = proc.stderr.take() {
-                let reader = BufReader::new(stderr);
-                for line in reader.lines() {
-                    if let Ok(line_str) = line {
-                        app.progress_output.push(format!("[ERR] {}", line_str));
-                        app.log(format!("[ERR] {}", line_str));
-                    }
-                }
-            }
-
-            // Wait for completion
-            match proc.wait() {
-                Ok(status) => {
-                    if status.success() {
-                        app.progress_percentage = 100.0;
-                        app.log("Sync completed successfully".to_string());
-
-                        // Clean up empty directories if delete_source is enabled
-                        if opts.delete_source && !app.source.is_empty() {
-                            app.log("Cleaning up empty source directories...".to_string());
-                            let find_result = Command::new("find")
-                                .args([&app.source, "-type", "d", "-empty", "-delete"])
-                                .output();
-
-                            match find_result {
-                                Ok(output) => {
-                                    if output.status.success() {
-                                        app.log("Empty directories removed".to_string());
-                                    } else {
-                                        let stderr = String::from_utf8_lossy(&output.stderr);
-                                        app.log(format!("Find command failed: {}", stderr));
-                                    }
-                                }
-                                Err(e) => {
-                                    app.log(format!("Failed to run find: {}", e));
-                                }
-                            }
-                        }
-                    } else {
-                        app.log(format!("Sync failed with exit code: {:?}", status.code()));
-                    }
-                }
-                Err(e) => {
-                    app.log(format!("Failed to wait for rsync: {}", e));
-                }
-            }
+    match runner::spawn(&args, opts.global_progress) {
+        Ok(r) => {
+            app.pending_cleanup = opts.should_cleanup_source();
+            app.runner = Some(r);
+            app.running = true;
         }
-        Err(e) => {
-            app.log(format!("Failed to execute rsync: {}", e));
-        }
+        Err(e) => app.log(format!("Failed to execute rsync: {}", e)),
     }
-
-    app.running = false;
 }
 
-/// Parse rsync progress output line
-/// Example: "     1,234,567  45%   12.34MB/s    0:01:23"
-fn parse_progress(line: &str) -> Option<(f64, String)> {
-    // Look for percentage pattern like "45%" or "100%"
-    let parts: Vec<&str> = line.split_whitespace().collect();
+/// Apply pending runner events; reap the process once its output ends
+fn drain_rsync_events(app: &mut App) {
+    let mut runner = match app.runner.take() {
+        Some(runner) => runner,
+        None => return,
+    };
 
-    for (i, part) in parts.iter().enumerate() {
-        if part.ends_with('%') {
-            if let Ok(percent) = part.trim_end_matches('%').parse::<f64>() {
-                // Gather transfer info (speed and time if available)
-                let info: Vec<&str> = parts[i + 1..].iter().take(2).copied().collect();
-                return Some((percent.min(100.0), info.join(" ")));
+    let mut finished = false;
+    loop {
+        match runner.events.try_recv() {
+            Ok(RsyncEvent::Progress(percent, info)) => {
+                app.progress_percentage = percent;
+                app.transfer_info = info;
+            }
+            Ok(RsyncEvent::Line(line)) => app.log(line),
+            Err(TryRecvError::Empty) => break,
+            Err(TryRecvError::Disconnected) => {
+                finished = true;
+                break;
             }
         }
     }
 
-    None
+    if finished {
+        let status = runner.child.wait().ok();
+        on_rsync_finished(app, status);
+    } else {
+        app.runner = Some(runner);
+    }
+}
+
+/// Handle rsync completion: report the outcome, run cleanup if due
+fn on_rsync_finished(app: &mut App, status: Option<std::process::ExitStatus>) {
+    app.running = false;
+    let success = status.map(|s| s.success()).unwrap_or(false);
+
+    if success {
+        app.progress_percentage = 100.0;
+        app.log("Sync completed successfully".to_string());
+        if app.pending_cleanup {
+            cleanup_source_dirs(app);
+        }
+    } else {
+        let code = status.and_then(|s| s.code());
+        app.log(format!("Sync failed: {}", describe_exit_code(code)));
+    }
+    app.pending_cleanup = false;
+}
+
+/// Handle keys while a confirmation modal is open
+fn handle_confirm_key(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) {
+    match key.code {
+        KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => match app.confirm.take() {
+            Some(Confirm::Run { dry_run }) => start_rsync(app, dry_run),
+            Some(Confirm::Cancel) => cancel_rsync(app),
+            None => {}
+        },
+        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => app.confirm = None,
+        _ => {}
+    }
+}
+
+/// Kill a running transfer, if any
+fn cancel_rsync(app: &mut App) {
+    if let Some(runner) = app.runner.as_mut() {
+        let _ = runner.child.kill();
+        app.log("Transfer cancelled".to_string());
+    }
+}
+
+/// Remove empty directories left in the source after --remove-source-files
+fn cleanup_source_dirs(app: &mut App) {
+    use std::process::Command;
+
+    app.log("Cleaning up empty source directories...".to_string());
+    let result = Command::new("find")
+        .args([&app.source, "-type", "d", "-empty", "-delete"])
+        .output();
+
+    match result {
+        Ok(output) if output.status.success() => {
+            app.log("Empty directories removed".to_string());
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            app.log(format!("Find command failed: {}", stderr));
+        }
+        Err(e) => app.log(format!("Failed to run find: {}", e)),
+    }
+}
+
+/// True when either rsync path is empty
+fn missing_paths(source: &str, destination: &str) -> bool {
+    source.trim().is_empty() || destination.trim().is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_missing_paths() {
+        assert!(missing_paths("", "/dest"));
+        assert!(missing_paths("/src", ""));
+        assert!(missing_paths("   ", "/dest"));
+        assert!(!missing_paths("/src", "/dest"));
+    }
+
+    #[test]
+    fn test_run_rsync_refuses_empty_paths() {
+        let mut app = App::new();
+        run_rsync(&mut app, false);
+
+        assert!(!app.running);
+        assert!(app.logs.back().unwrap().contains("source and destination"));
+    }
+
+    #[test]
+    fn test_run_rsync_refuses_when_already_running() {
+        let mut app = App::new();
+        app.running = true;
+        app.source = "/src".to_string();
+        app.destination = "/dest".to_string();
+        run_rsync(&mut app, false);
+
+        assert!(app.runner.is_none());
+        assert!(app.logs.back().unwrap().contains("already running"));
+    }
+
+    #[test]
+    fn test_run_rsync_destructive_requires_confirmation() {
+        let mut app = App::new();
+        app.source = "/src".to_string();
+        app.destination = "/dest".to_string();
+        app.options.delete = true;
+        run_rsync(&mut app, false);
+
+        assert!(!app.running);
+        assert_eq!(app.confirm, Some(Confirm::Run { dry_run: false }));
+    }
+
+    #[test]
+    fn test_confirm_dismiss_keeps_idle() {
+        let mut app = App::new();
+        app.confirm = Some(Confirm::Run { dry_run: false });
+        handle_confirm_key(
+            &mut app,
+            &ratatui::crossterm::event::KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
+        );
+
+        assert!(app.confirm.is_none());
+        assert!(!app.running);
+    }
+
+    #[test]
+    fn test_confirm_cancel_clears_state() {
+        let mut app = App::new();
+        app.confirm = Some(Confirm::Cancel);
+        handle_confirm_key(
+            &mut app,
+            &ratatui::crossterm::event::KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+        );
+
+        assert!(app.confirm.is_none());
+    }
 }

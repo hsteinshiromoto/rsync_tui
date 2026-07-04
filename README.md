@@ -5,16 +5,16 @@ A terminal user interface for rsync, inspired by lazygit's clean design.
 ## Features
 
 - Interactive panel-based interface with vim-style modes (Normal/Insert)
-- Toggle rsync options with letter keys (a/v/z/n/p/d/h/e)
+- Toggle rsync options with letter keys (a/v/z/n/p/d/h/e/r/f)
 - Live command preview
-- Real-time progress bar with transfer speed display
+- Progress bar with transfer stats (live in-transfer updates planned — see docs/improvement_plan.md)
 - Path autocomplete with Tab key
 - Support for local and remote (SSH) transfers
 - Vim-style navigation (j/k keys)
 
 ## Requirements
 
-- Rust 1.70+ (for building)
+- Rust 1.81 (matches the nix dev toolchain)
 - rsync installed on your system
 
 ## Installation
@@ -84,7 +84,7 @@ The application uses vim-style modes:
 | `j` / `Tab` | Move to next panel |
 | `k` / `Shift+Tab` | Move to previous panel |
 | `i` | Enter Insert mode (in Source/Destination panels) |
-| `a/v/z/n/p/d/h/e` | Toggle rsync options |
+| `a/v/z/n/p/d/h/e/r/f` | Toggle rsync options |
 | `Enter` | Execute rsync (when in Logs panel) |
 | `Ctrl+s` | Execute rsync sync |
 | `Ctrl+n` | Execute dry-run (preview only) |
@@ -113,6 +113,8 @@ The application uses vim-style modes:
 | `d` | Delete | `--delete` | Delete extraneous files on destination |
 | `h` | Human | `-h` | Human-readable file sizes |
 | `e` | SSH | `-e ssh` | Use SSH for remote transfers |
+| `r` | Delete source | `--remove-source-files` | Remove synced files from source (empty dirs cleaned up after success; skipped on dry-run) |
+| `f` | Global progress | `--info=progress2` | Show overall transfer progress |
 
 ### Examples
 
@@ -123,7 +125,7 @@ The application uses vim-style modes:
 **Remote sync (SSH):**
 - Source: `/home/user/documents`
 - Destination: `user@server:/backup/documents`
-- Enable option `8` (SSH)
+- Enable option `e` (SSH)
 
 ## Project Structure
 

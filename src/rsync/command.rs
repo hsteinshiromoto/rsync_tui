@@ -16,7 +16,7 @@ pub fn build_command(source: &str, destination: &str, options: &RsyncOptions) ->
     if options.dry_run {
         args.push("-n".to_string());
     }
-    if options.progress {
+    if options.per_file_progress {
         args.push("--progress".to_string());
     }
     if options.delete {
@@ -32,7 +32,7 @@ pub fn build_command(source: &str, destination: &str, options: &RsyncOptions) ->
     if options.delete_source {
         args.push("--remove-source-files".to_string());
     }
-    if options.progress_per_file {
+    if options.global_progress {
         args.push("--info=progress2".to_string());
     }
 
@@ -51,12 +51,35 @@ pub fn build_command(source: &str, destination: &str, options: &RsyncOptions) ->
 pub fn format_command(source: &str, destination: &str, options: &RsyncOptions) -> String {
     let mut cmd = build_command(source, destination, options).join(" ");
 
-    // Show the find command that will run after rsync if delete_source is enabled
-    if options.delete_source && !source.is_empty() {
+    // Show the find command that will run after rsync (skipped during dry-run)
+    if options.should_cleanup_source() && !source.is_empty() {
         cmd.push_str(&format!(" \\\n  && find {} -type d -empty -delete", source));
     }
 
     cmd
+}
+
+/// Map an rsync exit status to a human-readable description
+pub fn describe_exit_code(code: Option<i32>) -> String {
+    let code = match code {
+        Some(c) => c,
+        None => return "terminated by signal".to_string(),
+    };
+    let meaning = match code {
+        0 => "success",
+        1 => "syntax or usage error",
+        3 => "errors selecting input/output files or dirs",
+        5 => "error starting client-server protocol",
+        10 => "error in socket I/O",
+        11 => "error in file I/O",
+        12 => "error in rsync protocol data stream",
+        23 => "partial transfer due to error",
+        24 => "partial transfer due to vanished source files",
+        30 => "timeout in data send/receive",
+        35 => "timeout waiting for daemon connection",
+        _ => "unknown error",
+    };
+    format!("{} — {}", code, meaning)
 }
 
 #[cfg(test)]
@@ -120,7 +143,7 @@ mod tests {
         let mut opts = RsyncOptions::default();
         opts.archive = true;
         opts.verbose = false;
-        opts.progress = false;
+        opts.per_file_progress = false;
         opts.human_readable = false;
         let formatted = format_command("/src", "/dest", &opts);
 
@@ -134,12 +157,12 @@ mod tests {
             verbose: false,
             compress: false,
             dry_run: false,
-            progress: false,
+            per_file_progress: false,
             delete: false,
             human_readable: false,
             use_ssh: false,
             delete_source: false,
-            progress_per_file: false,
+            global_progress: false,
             exclude: vec![],
         };
         let cmd = build_command("/src", "/dest", &opts);
@@ -157,11 +180,48 @@ mod tests {
     }
 
     #[test]
-    fn test_progress_per_file_flag() {
+    fn test_global_progress_flag() {
         let mut opts = RsyncOptions::default();
-        opts.progress_per_file = true;
+        opts.global_progress = true;
         let cmd = build_command("/src", "/dest", &opts);
 
         assert!(cmd.contains(&"--info=progress2".to_string()));
+    }
+
+    #[test]
+    fn test_format_command_dry_run_hides_cleanup() {
+        let mut opts = RsyncOptions::default();
+        opts.delete_source = true;
+        opts.dry_run = true;
+        let formatted = format_command("/src", "/dest", &opts);
+
+        assert!(!formatted.contains("find"));
+    }
+
+    #[test]
+    fn test_format_command_shows_cleanup() {
+        let mut opts = RsyncOptions::default();
+        opts.delete_source = true;
+        let formatted = format_command("/src", "/dest", &opts);
+
+        assert!(formatted.contains("find /src -type d -empty -delete"));
+    }
+
+    #[test]
+    fn test_describe_exit_code_known() {
+        assert_eq!(
+            describe_exit_code(Some(23)),
+            "23 — partial transfer due to error"
+        );
+    }
+
+    #[test]
+    fn test_describe_exit_code_unknown() {
+        assert_eq!(describe_exit_code(Some(99)), "99 — unknown error");
+    }
+
+    #[test]
+    fn test_describe_exit_code_signal() {
+        assert_eq!(describe_exit_code(None), "terminated by signal");
     }
 }

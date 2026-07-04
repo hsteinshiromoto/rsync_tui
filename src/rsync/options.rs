@@ -5,14 +5,39 @@ pub struct RsyncOptions {
     pub verbose: bool,           // -v
     pub compress: bool,          // -z
     pub dry_run: bool,           // -n
-    pub progress: bool,          // --progress
+    pub per_file_progress: bool, // --progress
     pub delete: bool,            // --delete
     pub human_readable: bool,    // -h
     pub use_ssh: bool,           // -e ssh
     pub delete_source: bool,     // --remove-source-files
-    pub progress_per_file: bool, // --info=progress2
+    pub global_progress: bool,   // --info=progress2
     pub exclude: Vec<String>,
 }
+
+/// A toggleable option: key binding, display texts, and field accessors.
+/// Single source of truth driving toggling, option pills, the help bar,
+/// and destructive-run detection.
+pub struct OptionDef {
+    pub key: char,
+    pub label: &'static str,
+    pub flag: &'static str,
+    pub destructive: bool,
+    pub get: fn(&RsyncOptions) -> bool,
+    pub get_mut: fn(&mut RsyncOptions) -> &mut bool,
+}
+
+pub const OPTIONS: &[OptionDef] = &[
+    OptionDef { key: 'a', label: "Archive", flag: "-a", destructive: false, get: |o| o.archive, get_mut: |o| &mut o.archive },
+    OptionDef { key: 'v', label: "Verbose", flag: "-v", destructive: false, get: |o| o.verbose, get_mut: |o| &mut o.verbose },
+    OptionDef { key: 'z', label: "Compress", flag: "-z", destructive: false, get: |o| o.compress, get_mut: |o| &mut o.compress },
+    OptionDef { key: 'n', label: "Dry-run", flag: "-n", destructive: false, get: |o| o.dry_run, get_mut: |o| &mut o.dry_run },
+    OptionDef { key: 'p', label: "Progress", flag: "--progress", destructive: false, get: |o| o.per_file_progress, get_mut: |o| &mut o.per_file_progress },
+    OptionDef { key: 'd', label: "Delete", flag: "--delete", destructive: true, get: |o| o.delete, get_mut: |o| &mut o.delete },
+    OptionDef { key: 'h', label: "Human", flag: "-h", destructive: false, get: |o| o.human_readable, get_mut: |o| &mut o.human_readable },
+    OptionDef { key: 'e', label: "SSH", flag: "-e ssh", destructive: false, get: |o| o.use_ssh, get_mut: |o| &mut o.use_ssh },
+    OptionDef { key: 'r', label: "DelSrc", flag: "--remove-source-files", destructive: true, get: |o| o.delete_source, get_mut: |o| &mut o.delete_source },
+    OptionDef { key: 'f', label: "Global", flag: "--info=progress2", destructive: false, get: |o| o.global_progress, get_mut: |o| &mut o.global_progress },
+];
 
 impl Default for RsyncOptions {
     fn default() -> Self {
@@ -21,33 +46,39 @@ impl Default for RsyncOptions {
             verbose: true,
             compress: false,
             dry_run: false,
-            progress: true,
+            per_file_progress: true,
             delete: false,
             human_readable: true,
             use_ssh: false,
             delete_source: false,
-            progress_per_file: false,
+            global_progress: false,
             exclude: Vec::new(),
         }
     }
 }
 
 impl RsyncOptions {
-    /// Toggle an option by index (0-9)
-    pub fn toggle(&mut self, index: usize) {
-        match index {
-            0 => self.archive = !self.archive,
-            1 => self.verbose = !self.verbose,
-            2 => self.compress = !self.compress,
-            3 => self.dry_run = !self.dry_run,
-            4 => self.progress = !self.progress,
-            5 => self.delete = !self.delete,
-            6 => self.human_readable = !self.human_readable,
-            7 => self.use_ssh = !self.use_ssh,
-            8 => self.delete_source = !self.delete_source,
-            9 => self.progress_per_file = !self.progress_per_file,
-            _ => {}
+    /// True when the post-run source cleanup should execute.
+    /// Never true during a dry-run: a preview must not touch the filesystem.
+    pub fn should_cleanup_source(&self) -> bool {
+        self.delete_source && !self.dry_run
+    }
+
+    /// Toggle the option bound to `key`; returns false when no option matches
+    pub fn toggle_key(&mut self, key: char) -> bool {
+        for def in OPTIONS {
+            if def.key == key {
+                let field = (def.get_mut)(self);
+                *field = !*field;
+                return true;
+            }
         }
+        false
+    }
+
+    /// True when any enabled option can destroy data
+    pub fn has_destructive(&self) -> bool {
+        OPTIONS.iter().any(|def| def.destructive && (def.get)(self))
     }
 }
 
@@ -63,107 +94,71 @@ mod tests {
         assert!(opts.verbose);
         assert!(!opts.compress);
         assert!(!opts.dry_run);
-        assert!(opts.progress);
+        assert!(opts.per_file_progress);
         assert!(!opts.delete);
         assert!(opts.human_readable);
         assert!(!opts.use_ssh);
         assert!(!opts.delete_source);
-        assert!(!opts.progress_per_file);
+        assert!(!opts.global_progress);
         assert!(opts.exclude.is_empty());
     }
 
     #[test]
-    fn test_toggle_archive() {
+    fn test_toggle_key_flips_every_option() {
         let mut opts = RsyncOptions::default();
-        assert!(opts.archive);
-        opts.toggle(0);
-        assert!(!opts.archive);
-        opts.toggle(0);
-        assert!(opts.archive);
+
+        for def in OPTIONS {
+            let before = (def.get)(&opts);
+            assert!(opts.toggle_key(def.key), "no toggle for key {}", def.key);
+            assert_eq!((def.get)(&opts), !before, "key {} did not flip", def.key);
+        }
     }
 
     #[test]
-    fn test_toggle_verbose() {
+    fn test_toggle_key_unknown_is_noop() {
         let mut opts = RsyncOptions::default();
-        assert!(opts.verbose);
-        opts.toggle(1);
-        assert!(!opts.verbose);
+        let before = opts.clone();
+
+        assert!(!opts.toggle_key('x'));
+        assert_eq!(opts.archive, before.archive);
+        assert_eq!(opts.delete, before.delete);
     }
 
     #[test]
-    fn test_toggle_compress() {
-        let mut opts = RsyncOptions::default();
-        assert!(!opts.compress);
-        opts.toggle(2);
-        assert!(opts.compress);
+    fn test_options_table_has_unique_keys() {
+        let mut keys: Vec<char> = OPTIONS.iter().map(|def| def.key).collect();
+        keys.sort_unstable();
+        keys.dedup();
+
+        assert_eq!(keys.len(), OPTIONS.len());
     }
 
     #[test]
-    fn test_toggle_dry_run() {
+    fn test_has_destructive() {
         let mut opts = RsyncOptions::default();
-        assert!(!opts.dry_run);
-        opts.toggle(3);
-        assert!(opts.dry_run);
+        assert!(!opts.has_destructive());
+
+        opts.delete = true;
+        assert!(opts.has_destructive());
+
+        opts.delete = false;
+        opts.delete_source = true;
+        assert!(opts.has_destructive());
     }
 
     #[test]
-    fn test_toggle_progress() {
+    fn test_should_cleanup_source_requires_delete_source() {
         let mut opts = RsyncOptions::default();
-        assert!(opts.progress);
-        opts.toggle(4);
-        assert!(!opts.progress);
+        assert!(!opts.should_cleanup_source());
+        opts.delete_source = true;
+        assert!(opts.should_cleanup_source());
     }
 
     #[test]
-    fn test_toggle_delete() {
+    fn test_should_cleanup_source_blocked_by_dry_run() {
         let mut opts = RsyncOptions::default();
-        assert!(!opts.delete);
-        opts.toggle(5);
-        assert!(opts.delete);
-    }
-
-    #[test]
-    fn test_toggle_human_readable() {
-        let mut opts = RsyncOptions::default();
-        assert!(opts.human_readable);
-        opts.toggle(6);
-        assert!(!opts.human_readable);
-    }
-
-    #[test]
-    fn test_toggle_use_ssh() {
-        let mut opts = RsyncOptions::default();
-        assert!(!opts.use_ssh);
-        opts.toggle(7);
-        assert!(opts.use_ssh);
-    }
-
-    #[test]
-    fn test_toggle_delete_source() {
-        let mut opts = RsyncOptions::default();
-        assert!(!opts.delete_source);
-        opts.toggle(8);
-        assert!(opts.delete_source);
-    }
-
-    #[test]
-    fn test_toggle_progress_per_file() {
-        let mut opts = RsyncOptions::default();
-        assert!(!opts.progress_per_file);
-        opts.toggle(9);
-        assert!(opts.progress_per_file);
-    }
-
-    #[test]
-    fn test_toggle_invalid_index() {
-        let mut opts = RsyncOptions::default();
-        let original = opts.clone();
-        opts.toggle(10); // Invalid index
-        opts.toggle(100); // Invalid index
-
-        // All values should remain unchanged
-        assert_eq!(opts.archive, original.archive);
-        assert_eq!(opts.verbose, original.verbose);
-        assert_eq!(opts.compress, original.compress);
+        opts.delete_source = true;
+        opts.dry_run = true;
+        assert!(!opts.should_cleanup_source());
     }
 }

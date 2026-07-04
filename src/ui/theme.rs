@@ -73,6 +73,13 @@ pub fn pill_style(enabled: bool) -> Style {
     }
 }
 
+pub fn pill_danger() -> Style {
+    Style::default()
+        .fg(BG_DARK)
+        .bg(RED)
+        .add_modifier(Modifier::BOLD)
+}
+
 pub fn key_hint() -> Style {
     Style::default()
         .fg(KEY_HINT_FG)

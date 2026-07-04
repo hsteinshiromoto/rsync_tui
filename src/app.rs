@@ -1,4 +1,10 @@
+use std::collections::VecDeque;
+
 use crate::rsync::options::RsyncOptions;
+use crate::rsync::runner::RsyncRunner;
+
+/// Maximum number of log lines kept in memory
+const MAX_LOG_LINES: usize = 1000;
 
 /// Active panel in the TUI
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,20 +23,37 @@ pub enum Mode {
     Insert,
 }
 
+/// Pending action awaiting user confirmation
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Confirm {
+    /// Start a run whose enabled options can destroy data
+    Run { dry_run: bool },
+    /// Stop the transfer currently running
+    Cancel,
+}
+
 /// Application state
 pub struct App {
     pub source: String,
     pub destination: String,
     pub options: RsyncOptions,
-    pub logs: Vec<String>,
+    pub logs: VecDeque<String>,
     pub active_panel: Panel,
     pub mode: Mode,
     pub running: bool,
     pub should_quit: bool,
+    pub confirm: Option<Confirm>,
     // Progress tracking
-    pub progress_output: Vec<String>,
+    pub runner: Option<RsyncRunner>,
+    pub pending_cleanup: bool,
     pub progress_percentage: f64,
     pub transfer_info: String,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl App {
@@ -39,12 +62,14 @@ impl App {
             source: String::new(),
             destination: String::new(),
             options: RsyncOptions::default(),
-            logs: Vec::new(),
+            logs: VecDeque::new(),
             active_panel: Panel::Source,
             mode: Mode::Normal,
             running: false,
             should_quit: false,
-            progress_output: Vec::new(),
+            confirm: None,
+            runner: None,
+            pending_cleanup: false,
             progress_percentage: 0.0,
             transfer_info: String::new(),
         }
@@ -74,14 +99,16 @@ impl App {
 
     /// Clear progress state for new transfer
     pub fn clear_progress(&mut self) {
-        self.progress_output.clear();
         self.progress_percentage = 0.0;
         self.transfer_info.clear();
     }
 
-    /// Add a log message
+    /// Add a log message, keeping at most MAX_LOG_LINES entries
     pub fn log(&mut self, message: String) {
-        self.logs.push(message);
+        self.logs.push_back(message);
+        if self.logs.len() > MAX_LOG_LINES {
+            self.logs.pop_front();
+        }
     }
 }
 
@@ -100,7 +127,9 @@ mod tests {
         assert_eq!(app.mode, Mode::Normal);
         assert!(!app.running);
         assert!(!app.should_quit);
-        assert!(app.progress_output.is_empty());
+        assert!(app.confirm.is_none());
+        assert!(app.runner.is_none());
+        assert!(!app.pending_cleanup);
         assert_eq!(app.progress_percentage, 0.0);
         assert!(app.transfer_info.is_empty());
     }
@@ -151,5 +180,16 @@ mod tests {
         app.log("Second message".to_string());
         assert_eq!(app.logs.len(), 2);
         assert_eq!(app.logs[1], "Second message");
+    }
+
+    #[test]
+    fn test_log_caps_at_max_lines() {
+        let mut app = App::new();
+
+        for i in 0..1100 {
+            app.log(format!("line {}", i));
+        }
+        assert_eq!(app.logs.len(), 1000);
+        assert_eq!(app.logs.front().unwrap(), "line 100");
     }
 }
