@@ -48,6 +48,7 @@ A full application review (2026-07-04) produced `docs/improvement_plan.md`: a th
 - 2026-07-04: Phase 0 (Safety & hygiene) implemented — dry-run delete guard, panic hook, Makefile fix, tokio pruned, empty-path guard, human-readable exit codes, docs sync; 44/44 tests
 - 2026-07-05: Phase 1 WS-A implemented — threaded rsync runner (live progress, Esc/Ctrl+c cancel, stderr deadlock fix, \r-aware parsing), progress fields renamed per_file_progress/global_progress, logs bounded at 1000 lines; 52/52 tests
 - 2026-07-05: Phase 1 continued — B.1 confirmation modal for destructive runs/cancel, C.1 single OPTIONS table (toggles/pills/help/destructive detection), C.2 UTF-8-safe command wrapping, C.3 render dedupe, C.4 Default, red danger pills (U.4 partial); 51/51 tests
+- 2026-07-05: Phase 1 continued — B.2 cursor editing (Left/Right/Home/End, mid-string insert/delete), E.1 JSON config persistence (~/.config/rsync_tui/config.json); 53/53 tests
 
 ## Architecture
 
