@@ -140,6 +140,10 @@ fn handle_normal_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
         KeyCode::Char('j') => app.next_panel(), // Move down
         KeyCode::Char('k') => app.prev_panel(), // Move up
 
+        // Scroll logs (Page Up/Down in Normal mode)
+        KeyCode::PageUp => app.scroll_logs_up(),
+        KeyCode::PageDown => app.scroll_logs_down(),
+
         // Enter insert mode (only in Source/Destination panels)
         KeyCode::Char('i')
             if matches!(app.active_panel, Panel::Source | Panel::Destination) =>

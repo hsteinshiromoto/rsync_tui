@@ -13,6 +13,12 @@ use crate::rsync::options::{OptionDef, OPTIONS};
 
 /// Render the entire UI
 pub fn render(frame: &mut Frame, app: &App) {
+    // Minimum terminal size check
+    if frame.size().height < 20 || frame.size().width < 60 {
+        render_terminal_too_small(frame);
+        return;
+    }
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -55,6 +61,15 @@ pub fn render(frame: &mut Frame, app: &App) {
     if let Some(confirm) = app.confirm {
         render_confirm_modal(frame, app, confirm);
     }
+}
+
+fn render_terminal_too_small(frame: &mut Frame) {
+    let msg = Paragraph::new("Terminal too small\n(min 60×20)")
+        .style(Style::default().fg(theme::RED))
+        .alignment(ratatui::layout::Alignment::Center);
+    let area = centered_rect(30, 5, frame.size());
+    frame.render_widget(Clear, area);
+    frame.render_widget(msg, area);
 }
 
 /// Centred overlay area clamped to the frame
@@ -342,11 +357,13 @@ fn render_progress(frame: &mut Frame, area: Rect, app: &App) {
         .label(Span::styled(label, theme::text_primary()));
     frame.render_widget(gauge, inner_chunks[0]);
 
+    let max_lines = inner_chunks[1].height.saturating_sub(1) as usize;
     let output_lines: Vec<ListItem> = app
         .logs
         .iter()
         .rev()
-        .take(10)
+        .skip(app.scroll_offset)
+        .take(max_lines)
         .map(|line| {
             let style = if line.starts_with("[ERR]") {
                 Style::default().fg(theme::RED)
@@ -399,6 +416,7 @@ fn render_help(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let mut spans: Vec<Span> = Vec::new();
+    spans.push(Span::styled("Page↑/↓ scroll  ", theme::key_desc()));
     for (i, (key, desc)) in pairs.iter().enumerate() {
         if i > 0 {
             spans.push(Span::styled("  ", theme::key_desc()));

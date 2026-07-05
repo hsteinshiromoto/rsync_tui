@@ -45,6 +45,7 @@ pub struct App {
     pub running: bool,
     pub should_quit: bool,
     pub confirm: Option<Confirm>,
+    pub scroll_offset: usize,
     // Progress tracking
     pub runner: Option<RsyncRunner>,
     pub pending_cleanup: bool,
@@ -72,6 +73,7 @@ impl App {
             running: false,
             should_quit: false,
             confirm: None,
+            scroll_offset: 0,
             runner: None,
             pending_cleanup: false,
             progress_percentage: 0.0,
@@ -107,6 +109,18 @@ impl App {
         self.transfer_info.clear();
     }
 
+    /// Scroll logs down (towards newer entries)
+    pub fn scroll_logs_down(&mut self) {
+        if self.scroll_offset > 0 {
+            self.scroll_offset -= 1;
+        }
+    }
+
+    /// Scroll logs up (towards older entries)
+    pub fn scroll_logs_up(&mut self) {
+        self.scroll_offset = self.scroll_offset.saturating_add(1);
+    }
+
     /// Add a log message, keeping at most MAX_LOG_LINES entries
     pub fn log(&mut self, message: String) {
         self.logs.push_back(message);
@@ -136,6 +150,7 @@ mod tests {
         assert!(app.confirm.is_none());
         assert!(app.runner.is_none());
         assert!(!app.pending_cleanup);
+        assert_eq!(app.scroll_offset, 0);
         assert_eq!(app.progress_percentage, 0.0);
         assert!(app.transfer_info.is_empty());
     }

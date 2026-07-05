@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Destructive options render as red pills when enabled
 - Cursor editing in Insert mode: Left/Right/Home/End keys to navigate, mid-string insert/delete (no longer append-only), Delete key, Backspace
 - Settings persist to `~/.config/rsync_tui/config.json` and are loaded on startup
+- Scrollable logs and progress output; Page Up/Down to scroll in Normal mode
+- Terminal size check: graceful message if terminal too small (&lt; 60×20)
 
 ### Fixed
 - UI no longer freezes for the duration of a transfer
