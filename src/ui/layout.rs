@@ -34,6 +34,24 @@ pub fn render(frame: &mut Frame, app: &App) {
     render_progress(frame, chunks[5], app);
     render_help(frame, chunks[6], app);
 
+    // Render cursor in Insert mode
+    if app.mode == Mode::Insert {
+        let cursor_pos = match app.active_panel {
+            Panel::Source => {
+                let visible_len = app.source.len().min(chunks[1].width.saturating_sub(4) as usize);
+                let cursor_offset = app.source_cursor.min(visible_len);
+                (chunks[1].x + cursor_offset as u16 + 2, chunks[1].y + 1)
+            }
+            Panel::Destination => {
+                let visible_len = app.destination.len().min(chunks[2].width.saturating_sub(4) as usize);
+                let cursor_offset = app.dest_cursor.min(visible_len);
+                (chunks[2].x + cursor_offset as u16 + 2, chunks[2].y + 1)
+            }
+            _ => return,
+        };
+        frame.set_cursor(cursor_pos.0, cursor_pos.1);
+    }
+
     if let Some(confirm) = app.confirm {
         render_confirm_modal(frame, app, confirm);
     }

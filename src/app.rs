@@ -35,7 +35,9 @@ pub enum Confirm {
 /// Application state
 pub struct App {
     pub source: String,
+    pub source_cursor: usize,
     pub destination: String,
+    pub dest_cursor: usize,
     pub options: RsyncOptions,
     pub logs: VecDeque<String>,
     pub active_panel: Panel,
@@ -60,7 +62,9 @@ impl App {
     pub fn new() -> Self {
         Self {
             source: String::new(),
+            source_cursor: 0,
             destination: String::new(),
+            dest_cursor: 0,
             options: RsyncOptions::default(),
             logs: VecDeque::new(),
             active_panel: Panel::Source,
@@ -121,7 +125,9 @@ mod tests {
         let app = App::new();
 
         assert!(app.source.is_empty());
+        assert_eq!(app.source_cursor, 0);
         assert!(app.destination.is_empty());
+        assert_eq!(app.dest_cursor, 0);
         assert!(app.logs.is_empty());
         assert_eq!(app.active_panel, Panel::Source);
         assert_eq!(app.mode, Mode::Normal);

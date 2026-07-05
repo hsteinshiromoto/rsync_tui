@@ -1,5 +1,7 @@
+use serde::{Deserialize, Serialize};
+
 /// Rsync command options
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RsyncOptions {
     pub archive: bool,           // -a
     pub verbose: bool,           // -v

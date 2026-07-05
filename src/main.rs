@@ -1,4 +1,5 @@
 mod app;
+mod config;
 mod event;
 mod path;
 mod rsync;
@@ -8,6 +9,7 @@ use std::io;
 use std::sync::mpsc::TryRecvError;
 
 use app::{App, Confirm, Mode, Panel};
+use config::Config;
 use ratatui::crossterm::{
     event::{KeyCode, KeyModifiers},
     execute,
@@ -27,9 +29,24 @@ fn main() -> anyhow::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    // Run app
+    // Run app (load config if available)
     let mut app = App::new();
+    if let Some(cfg) = Config::load() {
+        app.source = cfg.source;
+        app.source_cursor = app.source.len();
+        app.destination = cfg.destination;
+        app.dest_cursor = app.destination.len();
+        app.options = cfg.options;
+    }
     let result = run(&mut terminal, &mut app);
+
+    // Save config on exit
+    let _ = Config {
+        source: app.source.clone(),
+        destination: app.destination.clone(),
+        options: app.options.clone(),
+    }
+    .save();
 
     // Restore terminal
     disable_raw_mode()?;
@@ -166,10 +183,84 @@ fn handle_insert_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
 
             if let Some(completed) = path::complete_path(&current_path) {
                 match app.active_panel {
-                    Panel::Source => app.source = completed,
-                    Panel::Destination => app.destination = completed,
+                    Panel::Source => {
+                        app.source = completed.clone();
+                        app.source_cursor = completed.len();
+                    }
+                    Panel::Destination => {
+                        app.destination = completed.clone();
+                        app.dest_cursor = completed.len();
+                    }
                     _ => {}
                 }
+            }
+        }
+
+        // Cursor movement
+        KeyCode::Left => {
+            match app.active_panel {
+                Panel::Source => {
+                    if app.source_cursor > 0 {
+                        app.source_cursor = prev_char_index(&app.source, app.source_cursor);
+                    }
+                }
+                Panel::Destination => {
+                    if app.dest_cursor > 0 {
+                        app.dest_cursor = prev_char_index(&app.destination, app.dest_cursor);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        KeyCode::Right => {
+            match app.active_panel {
+                Panel::Source => {
+                    if app.source_cursor < app.source.len() {
+                        app.source_cursor = next_char_index(&app.source, app.source_cursor);
+                    }
+                }
+                Panel::Destination => {
+                    if app.dest_cursor < app.destination.len() {
+                        app.dest_cursor = next_char_index(&app.destination, app.dest_cursor);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        KeyCode::Home => {
+            match app.active_panel {
+                Panel::Source => app.source_cursor = 0,
+                Panel::Destination => app.dest_cursor = 0,
+                _ => {}
+            }
+        }
+
+        KeyCode::End => {
+            match app.active_panel {
+                Panel::Source => app.source_cursor = app.source.len(),
+                Panel::Destination => app.dest_cursor = app.destination.len(),
+                _ => {}
+            }
+        }
+
+        // Delete at cursor
+        KeyCode::Delete => {
+            match app.active_panel {
+                Panel::Source => {
+                    if app.source_cursor < app.source.len() {
+                        let next_idx = next_char_index(&app.source, app.source_cursor);
+                        app.source.drain(app.source_cursor..next_idx);
+                    }
+                }
+                Panel::Destination => {
+                    if app.dest_cursor < app.destination.len() {
+                        let next_idx = next_char_index(&app.destination, app.dest_cursor);
+                        app.destination.drain(app.dest_cursor..next_idx);
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -178,23 +269,65 @@ fn handle_insert_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
             if !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
         {
             match app.active_panel {
-                Panel::Source => app.source.push(c),
-                Panel::Destination => app.destination.push(c),
+                Panel::Source => {
+                    app.source.insert(app.source_cursor, c);
+                    app.source_cursor += c.len_utf8();
+                }
+                Panel::Destination => {
+                    app.destination.insert(app.dest_cursor, c);
+                    app.dest_cursor += c.len_utf8();
+                }
                 _ => {}
             }
         }
 
-        // Backspace
+        // Backspace - delete before cursor
         KeyCode::Backspace => {
             match app.active_panel {
-                Panel::Source => { app.source.pop(); }
-                Panel::Destination => { app.destination.pop(); }
+                Panel::Source => {
+                    if app.source_cursor > 0 {
+                        let prev_idx = prev_char_index(&app.source, app.source_cursor);
+                        app.source.drain(prev_idx..app.source_cursor);
+                        app.source_cursor = prev_idx;
+                    }
+                }
+                Panel::Destination => {
+                    if app.dest_cursor > 0 {
+                        let prev_idx = prev_char_index(&app.destination, app.dest_cursor);
+                        app.destination.drain(prev_idx..app.dest_cursor);
+                        app.dest_cursor = prev_idx;
+                    }
+                }
                 _ => {}
             }
         }
 
         _ => {}
     }
+}
+
+/// Index of the previous character boundary in a string before `byte_idx`
+fn prev_char_index(s: &str, byte_idx: usize) -> usize {
+    let mut idx = byte_idx;
+    while idx > 0 {
+        idx -= 1;
+        if s.is_char_boundary(idx) {
+            return idx;
+        }
+    }
+    0
+}
+
+/// Index of the next character boundary in a string after `byte_idx`
+fn next_char_index(s: &str, byte_idx: usize) -> usize {
+    let mut idx = byte_idx + 1;
+    while idx <= s.len() {
+        if s.is_char_boundary(idx) {
+            return idx;
+        }
+        idx += 1;
+    }
+    s.len()
 }
 
 /// Gate a run request: refuse invalid state, confirm destructive runs
@@ -269,7 +402,7 @@ fn drain_rsync_events(app: &mut App) {
     }
 }
 
-/// Handle rsync completion: report the outcome, run cleanup if due
+/// Handle rsync completion: report the outcome, run cleanup if due, save config
 fn on_rsync_finished(app: &mut App, status: Option<std::process::ExitStatus>) {
     app.running = false;
     let success = status.map(|s| s.success()).unwrap_or(false);
@@ -285,6 +418,14 @@ fn on_rsync_finished(app: &mut App, status: Option<std::process::ExitStatus>) {
         app.log(format!("Sync failed: {}", describe_exit_code(code)));
     }
     app.pending_cleanup = false;
+
+    // Save config after every run
+    let _ = Config {
+        source: app.source.clone(),
+        destination: app.destination.clone(),
+        options: app.options.clone(),
+    }
+    .save();
 }
 
 /// Handle keys while a confirmation modal is open
