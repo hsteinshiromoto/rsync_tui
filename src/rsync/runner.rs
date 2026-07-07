@@ -48,7 +48,7 @@ fn stream_output<R: Read>(source: R, tx: &Sender<RsyncEvent>, is_err: bool, glob
     let mut acc: Vec<u8> = Vec::new();
     loop {
         let chunk = match reader.fill_buf() {
-            Ok(chunk) if chunk.is_empty() => break,
+            Ok([]) => break,
             Ok(chunk) => chunk.to_vec(),
             Err(_) => break,
         };

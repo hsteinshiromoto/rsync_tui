@@ -1,5 +1,13 @@
-.PHONY: test
+CARGO ?= cargo
+
+.PHONY: build test lint
+
+build:
+	$(CARGO) build
 
 test:
-	cargo check && \
-	cargo test 2>&1
+	$(CARGO) check && \
+	$(CARGO) test 2>&1
+
+lint:
+	$(CARGO) clippy -- -D warnings

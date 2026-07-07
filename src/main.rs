@@ -203,15 +203,11 @@ fn handle_insert_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
         // Cursor movement
         KeyCode::Left => {
             match app.active_panel {
-                Panel::Source => {
-                    if app.source_cursor > 0 {
-                        app.source_cursor = prev_char_index(&app.source, app.source_cursor);
-                    }
+                Panel::Source if app.source_cursor > 0 => {
+                    app.source_cursor = prev_char_index(&app.source, app.source_cursor);
                 }
-                Panel::Destination => {
-                    if app.dest_cursor > 0 {
-                        app.dest_cursor = prev_char_index(&app.destination, app.dest_cursor);
-                    }
+                Panel::Destination if app.dest_cursor > 0 => {
+                    app.dest_cursor = prev_char_index(&app.destination, app.dest_cursor);
                 }
                 _ => {}
             }
@@ -219,15 +215,11 @@ fn handle_insert_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
 
         KeyCode::Right => {
             match app.active_panel {
-                Panel::Source => {
-                    if app.source_cursor < app.source.len() {
-                        app.source_cursor = next_char_index(&app.source, app.source_cursor);
-                    }
+                Panel::Source if app.source_cursor < app.source.len() => {
+                    app.source_cursor = next_char_index(&app.source, app.source_cursor);
                 }
-                Panel::Destination => {
-                    if app.dest_cursor < app.destination.len() {
-                        app.dest_cursor = next_char_index(&app.destination, app.dest_cursor);
-                    }
+                Panel::Destination if app.dest_cursor < app.destination.len() => {
+                    app.dest_cursor = next_char_index(&app.destination, app.dest_cursor);
                 }
                 _ => {}
             }
@@ -252,17 +244,13 @@ fn handle_insert_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
         // Delete at cursor
         KeyCode::Delete => {
             match app.active_panel {
-                Panel::Source => {
-                    if app.source_cursor < app.source.len() {
-                        let next_idx = next_char_index(&app.source, app.source_cursor);
-                        app.source.drain(app.source_cursor..next_idx);
-                    }
+                Panel::Source if app.source_cursor < app.source.len() => {
+                    let next_idx = next_char_index(&app.source, app.source_cursor);
+                    app.source.drain(app.source_cursor..next_idx);
                 }
-                Panel::Destination => {
-                    if app.dest_cursor < app.destination.len() {
-                        let next_idx = next_char_index(&app.destination, app.dest_cursor);
-                        app.destination.drain(app.dest_cursor..next_idx);
-                    }
+                Panel::Destination if app.dest_cursor < app.destination.len() => {
+                    let next_idx = next_char_index(&app.destination, app.dest_cursor);
+                    app.destination.drain(app.dest_cursor..next_idx);
                 }
                 _ => {}
             }
@@ -288,19 +276,15 @@ fn handle_insert_mode(app: &mut App, key: &ratatui::crossterm::event::KeyEvent) 
         // Backspace - delete before cursor
         KeyCode::Backspace => {
             match app.active_panel {
-                Panel::Source => {
-                    if app.source_cursor > 0 {
-                        let prev_idx = prev_char_index(&app.source, app.source_cursor);
-                        app.source.drain(prev_idx..app.source_cursor);
-                        app.source_cursor = prev_idx;
-                    }
+                Panel::Source if app.source_cursor > 0 => {
+                    let prev_idx = prev_char_index(&app.source, app.source_cursor);
+                    app.source.drain(prev_idx..app.source_cursor);
+                    app.source_cursor = prev_idx;
                 }
-                Panel::Destination => {
-                    if app.dest_cursor > 0 {
-                        let prev_idx = prev_char_index(&app.destination, app.dest_cursor);
-                        app.destination.drain(prev_idx..app.dest_cursor);
-                        app.dest_cursor = prev_idx;
-                    }
+                Panel::Destination if app.dest_cursor > 0 => {
+                    let prev_idx = prev_char_index(&app.destination, app.dest_cursor);
+                    app.destination.drain(prev_idx..app.dest_cursor);
+                    app.dest_cursor = prev_idx;
                 }
                 _ => {}
             }

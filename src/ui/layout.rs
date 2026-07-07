@@ -14,7 +14,7 @@ use crate::rsync::options::{OptionDef, OPTIONS};
 /// Render the entire UI
 pub fn render(frame: &mut Frame, app: &App) {
     // Minimum terminal size check
-    if frame.size().height < 20 || frame.size().width < 60 {
+    if frame.area().height < 20 || frame.area().width < 60 {
         render_terminal_too_small(frame);
         return;
     }
@@ -30,7 +30,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             Constraint::Min(6),   // Progress
             Constraint::Length(3), // Help bar
         ])
-        .split(frame.size());
+        .split(frame.area());
 
     render_title(frame, chunks[0], app);
     render_path_input(frame, chunks[1], &app.source, "1", "Source", app.active_panel == Panel::Source);
@@ -55,7 +55,7 @@ pub fn render(frame: &mut Frame, app: &App) {
             }
             _ => return,
         };
-        frame.set_cursor(cursor_pos.0, cursor_pos.1);
+        frame.set_cursor_position(cursor_pos);
     }
 
     if let Some(confirm) = app.confirm {
@@ -67,7 +67,7 @@ fn render_terminal_too_small(frame: &mut Frame) {
     let msg = Paragraph::new("Terminal too small\n(min 60×20)")
         .style(Style::default().fg(theme::RED))
         .alignment(ratatui::layout::Alignment::Center);
-    let area = centered_rect(30, 5, frame.size());
+    let area = centered_rect(30, 5, frame.area());
     frame.render_widget(Clear, area);
     frame.render_widget(msg, area);
 }
@@ -97,7 +97,7 @@ fn render_confirm_modal(frame: &mut Frame, app: &App, confirm: Confirm) {
         Confirm::Cancel => "Stop the running transfer?".to_string(),
     };
 
-    let area = centered_rect(60, 6, frame.size());
+    let area = centered_rect(60, 6, frame.area());
     frame.render_widget(Clear, area);
     let modal = Paragraph::new(vec![
         Line::from(Span::styled(message, theme::text_primary())),
